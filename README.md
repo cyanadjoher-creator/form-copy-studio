@@ -22,17 +22,16 @@ Rules that keep the copy accurate:
 ## Deploy on Vercel (one time, about 10 minutes)
 
 1. **Import the repo.** vercel.com → Add New → Project → import `form-copy-studio` from GitHub. Framework: Next.js (detected). Deploy.
-2. **Database.** In the project: Storage → Create → **Neon (Postgres)** → connect to the project. Vercel adds `DATABASE_URL` by itself.
-3. **Photo storage.** Storage → Create → **Blob** → connect. Vercel adds `BLOB_READ_WRITE_TOKEN` by itself. Photos are private and served only to signed-in users.
-4. **Settings → Environment Variables**, add:
+2. **Database.** In the project: Storage → Create → **Neon (Postgres)** → connect to the project. Vercel adds `DATABASE_URL` by itself. The photos are stored in this database too, behind the login: there is no separate photo storage to set up. (The free Neon plan holds roughly 1,000 photos; a Vercel Blob store can be connected later and is then used automatically.)
+3. **Settings → Environment Variables**, add:
    - `APP_PASSWORD`: the team password.
    - `ANTHROPIC_API_KEY`: the model key (console.anthropic.com).
    - Optional, to run Soukita's Gemini setup instead: `AI_PROVIDER=gemini` and `GEMINI_API_KEY`.
-5. **Redeploy** (Deployments → … → Redeploy) so the new settings apply.
+4. **Redeploy** (Deployments → … → Redeploy) so the new settings apply.
 
 On first load the database is created and filled with Soukita's test set (18 garments) and one boutique listing example. Every push to `main` deploys automatically.
 
-The sidebar shows which model is in use. A yellow banner appears if the database, the photo storage or the model key is missing.
+The sidebar shows which model is in use. A yellow banner appears if the database or the model key is missing.
 
 ## Run locally
 
@@ -42,7 +41,7 @@ cp .env.example .env.local   # optional: add ANTHROPIC_API_KEY
 npm run dev                  # http://localhost:3000
 ```
 
-Without `DATABASE_URL` it uses an embedded Postgres in `.data/`; without `BLOB_READ_WRITE_TOKEN` photos go to `.data/uploads/`. No password is asked when `APP_PASSWORD` is empty.
+Without `DATABASE_URL` it uses an embedded Postgres in `.data/` (photos included). No password is asked when `APP_PASSWORD` is empty.
 
 ## Tests
 
@@ -62,7 +61,7 @@ lib/db.ts            Postgres (Neon) or embedded PGlite; schema
 lib/seed.ts          first-run data (Soukita's test set, prompts, vocabulary)
 lib/repo.ts          data access, exact photo-set match
 lib/ai.ts            Claude / Gemini / mock
-lib/storage.ts       private Vercel Blob or local folder
+lib/storage.ts       photos in the database (or a Vercel Blob store if connected)
 app/api/...          REST routes (approval rule enforced in products/[id])
 app/(studio)/...     pages
 components/          Ingestion, data provider, shared UI

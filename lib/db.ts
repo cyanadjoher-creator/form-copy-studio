@@ -45,4 +45,5 @@ const SCHEMA = [
   `create table if not exists prompts (v int primary key, body text not null, rules text not null default '', note text not null default '', created text not null default '', active boolean not null default false)`,
   `create table if not exists vocab (key text primary key, value jsonb not null)`,
   `create table if not exists refs (code text primary key, data jsonb not null)`,
+  `create table if not exists photo_files (key text primary key, mime text not null, data text not null)`,
 ];
