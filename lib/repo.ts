@@ -1,10 +1,12 @@
 // Data access. Products are stored as JSON documents (one row each) with photos in their own table,
 // so the shape can evolve while the copy process is still being defined.
 import { db } from './db';
-import { DEFAULT_VOCAB, DONE, normCode, type Boutique, type Photo, type Product, type Prompt, type Ref, type Vocab } from './domain';
+import { DEFAULT_VOCAB, DONE, normCode, refKey, type Boutique, type Photo, type Product, type Prompt, type Ref, type Vocab } from './domain';
 import { HttpError } from './http';
 
 type Row = { id: string; data: Product };
+// Older rows may predate a field: fill it so the screens can rely on it.
+const withDefaults = (d: Partial<Product>, id: string, photos: Photo[]): Product => ({ ...d, boutiqueRef: d.boutiqueRef ?? '', holds: d.holds ?? [], id, photos } as Product);
 
 async function photosFor(ids: string[]): Promise<Record<string, Photo[]>> {
   const q = await db();
@@ -19,14 +21,14 @@ export async function listProducts(): Promise<Product[]> {
   const q = await db();
   const rows = await q<Row>('select id, data from products order by updated_at desc, id');
   const ph = await photosFor(rows.map((r) => r.id));
-  return rows.map((r) => ({ ...r.data, id: r.id, photos: ph[r.id] || [] }));
+  return rows.map((r) => withDefaults(r.data, r.id, ph[r.id] || []));
 }
 export async function getProduct(id: string): Promise<Product> {
   const q = await db();
   const [row] = await q<Row>('select id, data from products where id = $1', [id]);
   if (!row) throw new HttpError(404, 'Product not found');
   const ph = await photosFor([id]);
-  return { ...row.data, id, photos: ph[id] || [] };
+  return withDefaults(row.data, id, ph[id] || []);
 }
 export async function saveProduct(p: Product): Promise<Product> {
   const q = await db();
@@ -87,17 +89,19 @@ export async function setVocab(key: string, value: unknown) {
 
 export async function listRefs(): Promise<Ref[]> {
   const q = await db();
-  return (await q<{ data: Ref }>('select data from refs order by code')).map((r) => r.data);
+  return (await q<{ data: Ref }>('select data from refs order by code')).map((r) => ({ boutiqueRef: '', ...r.data }));
 }
 export async function addRefs(refs: Ref[]) {
   const q = await db();
-  const existing = new Set((await listRefs()).map((r) => normCode(r.code)));
+  // Keyed by the garment code, or by the boutique ID (prefixed B) when the garment code is not known yet.
+  const existing = new Set((await listRefs()).map((r) => normCode(refKey(r))));
   let n = 0;
   for (const r of refs) {
-    const code = String(r.code || '').trim();
-    if (!code || existing.has(normCode(code))) continue;
-    existing.add(normCode(code));
-    await q('insert into refs (code, data) values ($1, $2::jsonb) on conflict do nothing', [code, JSON.stringify({ ...r, code })]);
+    const code = String(r.code || '').trim(), boutiqueRef = String(r.boutiqueRef || '').trim();
+    const key = refKey({ ...r, code, boutiqueRef });
+    if (key === 'B' || existing.has(normCode(key))) continue;
+    existing.add(normCode(key));
+    await q('insert into refs (code, data) values ($1, $2::jsonb) on conflict do nothing', [key, JSON.stringify({ ...r, code, boutiqueRef })]);
     n++;
   }
   return n;

@@ -1,9 +1,9 @@
 import { handle, HttpError } from '@/lib/http';
-import { blankProduct, canon, normSeason, now, readBoutiqueText, readiness, uid, type Product } from '@/lib/domain';
+import { blankProduct, canon, normSeason, now, readBoutiqueText, readiness, uid, type Product, GARMENT_CODE_MISSING } from '@/lib/domain';
 import { getVocab, listBoutiques, saveProduct, upsertBoutique } from '@/lib/repo';
 
 export const dynamic = 'force-dynamic';
-const TRACKED = ['brand', 'name', 'category', 'colour', 'material', 'condition', 'size', 'madeIn', 'measurements', 'care', 'productCode'];
+const TRACKED = ['boutiqueRef', 'brand', 'name', 'category', 'colour', 'material', 'condition', 'size', 'madeIn', 'measurements', 'care', 'productCode'];
 
 /** Imports mapped rows from a boutique file or a Shopify export. Rows arrive already mapped to FORM fields. */
 export const POST = handle(async (req: Request) => {
@@ -31,7 +31,7 @@ export const POST = handle(async (req: Request) => {
     const p: Product = blankProduct(boutiqueId);
     const ns = normSeason(o.seasonRaw);
     Object.assign(p, {
-      sku: o.sku || '', productCode: o.productCode || '', name: o.name || '',
+      sku: o.sku || '', boutiqueRef: o.boutiqueRef || '', productCode: o.productCode || '', name: o.name || '',
       brand: o.brand ? canon(vocab.brands, o.brand.toUpperCase()) : '',
       category: canon(vocab.categories, o.category || ''), colour: canon(vocab.colours, o.colour || ''),
       material: canon(vocab.materials, o.material || ''), condition: canon(vocab.conditions, o.condition || ''),
@@ -41,6 +41,7 @@ export const POST = handle(async (req: Request) => {
       history: [{ t: now(), s: 'Imported', n: 'from ' + bname }],
     });
     TRACKED.forEach((k) => { if (o[k]) p.fieldSrc[k] = 'file'; });
+    if (!o.productCode) p.flags.push(GARMENT_CODE_MISSING);
     if (o.seasonRaw && ns.yv) p.fieldSrc.season = 'file';
     readBoutiqueText(p, vocab);
     p.needsInfo = readiness(p).missing.length > 0;

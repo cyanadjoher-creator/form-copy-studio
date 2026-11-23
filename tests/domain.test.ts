@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { DEFAULT_VOCAB, applyModelFields, blankProduct, lint, normCode, normSeason, parseCSV, readBoutiqueText, readiness, shopifyGroup } from '../lib/domain.ts';
+import { DEFAULT_VOCAB, applyModelFields, blankProduct, lint, normCode, normSeason, parseCSV, readBoutiqueText, readiness, shopifyGroup, guessField, refMatch, refKey, refLinked } from '../lib/domain.ts';
 
 test('season labels are normalised to the house vocabulary', () => {
   assert.equal(normSeason('FW04').season, 'Fall/Winter 2004');
@@ -26,7 +26,7 @@ test('boutique text fills empty fields only, and flags disagreements', () => {
   assert.equal(p.measurements, 'Chest 50 cm, length 70 cm');
   const r = readiness(p);
   assert.ok(r.conflicts.includes('Colour'));
-  assert.ok(r.missing.includes('Product code'));
+  assert.ok(r.missing.includes('Product code (garment label)'));
 });
 
 test('several values in the text are not guessed', () => {
@@ -71,4 +71,16 @@ test('house style check catches dashes, US spelling and the season line', () => 
 
 test('product codes match whatever the punctuation', () => {
   assert.equal(normCode('S30-AM 0123'), normCode('s30am0123'));
+});
+
+test('boutique ID is kept apart from the garment code', () => {
+  assert.equal(guessField('ID'), 'boutiqueRef');
+  assert.equal(guessField('Variant SKU'), 'sku');
+  assert.equal(guessField('Style code'), 'productCode');
+  assert.notEqual(guessField('Width'), 'boutiqueRef');
+  const refs = [{ code: '', boutiqueRef: '16493691076943', brand: 'X', season: '', name: '', category: '', source: '', note: '' }];
+  assert.equal(refMatch(refs, ''), null);
+  assert.equal(refKey(refs[0]), 'B16493691076943');
+  const p = { ...blankProduct('B1'), boutiqueRef: '16493691076943' };
+  assert.equal(refLinked([p], refs[0]).length, 1);
 });

@@ -36,7 +36,7 @@ function Stock() {
     const ql = q.toLowerCase();
     return data.products.filter((p) => (boutique === 'all' || p.boutiqueId === boutique) && (!fBrand || p.brand === fBrand) && (!fSeason || p.season === fSeason)
       && (!fStatus || (FLAG_FILTERS[fStatus] ? FLAG_FILTERS[fStatus](p) : p.status === fStatus))
-      && (!ql || [p.sku, p.productCode, p.brand, p.name, p.season, p.material, p.boutiqueDesc].join(' ').toLowerCase().includes(ql)));
+      && (!ql || [p.sku, p.boutiqueRef, p.productCode, p.brand, p.name, p.season, p.material, p.boutiqueDesc].join(' ').toLowerCase().includes(ql)));
   }, [data, boutique, fBrand, fSeason, fStatus, q]);
   if (!data) return null;
   const brands = [...new Set(data.products.map((p) => p.brand))].sort();
@@ -60,7 +60,7 @@ function Stock() {
     setMapping({ rows: g.rows, name });
   }
   function copyCsv() {
-    const cols: (keyof Product)[] = ['sku', 'productCode', 'brand', 'name', 'season', 'seasonRaw', 'size', 'condition', 'colour', 'material', 'madeIn', 'measurements', 'care', 'status'];
+    const cols: (keyof Product)[] = ['sku', 'boutiqueRef', 'productCode', 'brand', 'name', 'season', 'seasonRaw', 'size', 'condition', 'colour', 'material', 'madeIn', 'measurements', 'care', 'status'];
     const csv = [cols.join(','), ...list.map((p) => cols.map((c) => `"${String(p[c] ?? '').replace(/"/g, '""')}"`).join(','))].join('\n');
     navigator.clipboard.writeText(csv).then(() => toast(`${list.length} rows copied`), () => toast('Copy blocked by the browser'));
   }

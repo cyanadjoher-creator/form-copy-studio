@@ -17,13 +17,15 @@ export type Photo = { id: string; url: string; role: string; sha256: string; pos
 export type HistoryItem = { t: string; s: string; n: string };
 
 export type Product = {
-  id: string; sku: string; productCode: string; boutiqueId: string;
+  id: string; sku: string; boutiqueRef: string; productCode: string; boutiqueId: string;
   brand: string; name: string; category: string; colour: string; material: string;
   madeIn: string; measurements: string; care: string;
   seasonRaw: string; season: string; seasonType: string; seasonYear: string; year: number | null;
   sizeSystem: string; size: string; condition: string; price: string;
   boutiqueDesc: string; notes: string; research: string; sources: Source[];
   status: Stage; needsInfo: boolean; copy: string; boutiqueText: string; flags: string[];
+  /** Checks held until confirmed (e.g. fibre on a blurry label). They survive regeneration and are cleared by hand. */
+  holds: string[];
   promptV: number | null; updated: string; history: HistoryItem[];
   fieldSrc: Record<string, string>; conflicts: Record<string, string>;
   photos: Photo[];
@@ -34,7 +36,7 @@ export type Vocab = {
   colours: string[]; materials: string[]; conditions: string[]; sizes: Record<string, string[]>;
 };
 
-export type Ref = { code: string; brand: string; season: string; name: string; category: string; source: string; note: string };
+export type Ref = { code: string; boutiqueRef?: string; brand: string; season: string; name: string; category: string; source: string; note: string };
 export type Boutique = { id: string; name: string; imported: string };
 export type Prompt = { v: number; text: string; rules: string; note: string; created: string; active: boolean };
 
@@ -43,10 +45,10 @@ export const uid = (p = 'P') => p + Date.now().toString(36) + Math.random().toSt
 
 export function blankProduct(boutiqueId = 'B0'): Product {
   return {
-    id: uid('P'), sku: '', productCode: '', boutiqueId, brand: '', name: '', category: '', colour: '', material: '',
+    id: uid('P'), sku: '', boutiqueRef: '', productCode: '', boutiqueId, brand: '', name: '', category: '', colour: '', material: '',
     madeIn: '', measurements: '', care: '', seasonRaw: '', season: 'Unknown', seasonType: 'Unknown', seasonYear: '', year: null,
     sizeSystem: '', size: '', condition: '', price: '', boutiqueDesc: '', notes: '', research: '', sources: [],
-    status: 'Imported', needsInfo: false, copy: '', boutiqueText: '', flags: [], promptV: null, updated: now(),
+    status: 'Imported', needsInfo: false, copy: '', boutiqueText: '', flags: [], holds: [], promptV: null, updated: now(),
     history: [], fieldSrc: {}, conflicts: {}, photos: [],
   };
 }
@@ -117,8 +119,10 @@ export const VOCAB_LISTS: { key: keyof Vocab; label: string; field: keyof Produc
 
 /* ---------- import mapping ---------- */
 export const FIELDS: [keyof Product, string, string[]][] = [
-  ['sku', 'Boutique SKU', ['variant sku', 'sku', 'stock', 'stock number', 'item id', 'id', 'boutique ref', 'ref']],
-  ['productCode', 'Product code (on the label)', ['product code', 'style code', 'style', 'model code', 'model', 'modèle', 'code produit', 'article', 'reference', 'référence', 'code']],
+  ['sku', 'Boutique SKU', ['variant sku', 'sku', 'stock', 'stock number', 'boutique ref', 'ref']],
+  // The boutique's own listing or Shopify ID. Kept apart from the code printed on the garment.
+  ['boutiqueRef', 'Boutique ID (listing or Shopify ID)', ['id', 'product id', 'shopify id', 'listing id', 'boutique id', 'item id', 'variant id']],
+  ['productCode', 'Product code (on the garment label)', ['product code', 'style code', 'style', 'model code', 'model', 'modèle', 'code produit', 'article', 'reference', 'référence', 'code']],
   ['brand', 'Brand', ['vendor', 'brand', 'designer', 'maison', 'house', 'label', 'marque']],
   ['name', 'Item name', ['title', 'name', 'item', 'product', 'product name', 'item name', 'nom']],
   ['category', 'Category', ['product type', 'product category', 'category', 'type', 'categorie', 'catégorie', 'department']],
@@ -136,7 +140,7 @@ export const FIELDS: [keyof Product, string, string[]][] = [
 export function guessField(header: string): string {
   const h = header.toLowerCase().trim();
   for (const [k, , syn] of FIELDS) if (syn.some((s) => h === s)) return k as string;
-  for (const [k, , syn] of FIELDS) if (syn.some((s) => h.includes(s))) return k as string;
+  for (const [k, , syn] of FIELDS) if (syn.some((s) => s.length > 2 && h.includes(s))) return k as string;
   return '';
 }
 export function parseCSV(text: string): string[][] {
@@ -181,7 +185,7 @@ export function shopifyGroup(rows: string[][]): { rows: string[][]; merged: bool
 export const stripHtml = (s: string) => String(s || '').replace(/<[^>]+>/g, ' ').replace(/&amp;/g, '&').replace(/&#39;/g, "'").replace(/&quot;/g, '"').replace(/\s+/g, ' ').trim();
 
 /* ---------- reading the boutique text (rules, no AI) ---------- */
-export const FIELD_LABEL: Record<string, string> = { brand: 'Brand', name: 'Item name', season: 'Season', category: 'Category', colour: 'Colour', material: 'Material', size: 'Size', condition: 'Condition', productCode: 'Product code', madeIn: 'Made in', measurements: 'Measurements', care: 'Care' };
+export const FIELD_LABEL: Record<string, string> = { boutiqueRef: 'Boutique ID', brand: 'Brand', name: 'Item name', season: 'Season', category: 'Category', colour: 'Colour', material: 'Material', size: 'Size', condition: 'Condition', productCode: 'Product code (garment label)', madeIn: 'Made in', measurements: 'Measurements', care: 'Care' };
 export const REQUIRED = ['brand', 'name', 'season', 'category', 'colour', 'material', 'size', 'condition', 'productCode'];
 const CAT_WORDS: [string, string][] = [['t-shirt', 'T-shirts'], ['tee', 'T-shirts'], ['tank top', 'Tank tops'], ['tank', 'Tank tops'], ['hoodie', 'Hoodies & Sweatshirts'], ['sweatshirt', 'Hoodies & Sweatshirts'], ['cardigan', 'Cardigans'], ['jumper', 'Jumpers'], ['sweater', 'Jumpers'], ['blazer', 'Blazers'], ['jacket', 'Jackets'], ['trench', 'Coats'], ['coat', 'Coats'], ['waistcoat', 'Waistcoats'], ['trousers', 'Trousers'], ['pants', 'Trousers'], ['jeans', 'Jeans'], ['skirt', 'Skirts'], ['dress', 'Dresses'], ['blouse', 'Blouses'], ['shirt', 'Shirts'], ['boots', 'Boots'], ['shoes', 'Shoes'], ['heels', 'Shoes'], ['loafers', 'Shoes'], ['sneakers', 'Shoes'], ['tote', 'Bags'], ['bag', 'Bags'], ['clutch', 'Bags'], ['belt', 'Belts'], ['scarf', 'Scarves'], ['hat', 'Hats'], ['gloves', 'Gloves'], ['knit', 'Knitwear'], ['top', 'Tops']];
 const COLOUR_SYN: Record<string, string> = { gray: 'Grey', multicolor: 'Multicolour', multicoloured: 'Multicolour', multicolored: 'Multicolour' };
@@ -350,7 +354,7 @@ export function detailsBlock(p: Product) {
     `Season: ${p.season}${p.seasonRaw && p.seasonRaw !== p.season ? ` (boutique wrote "${p.seasonRaw}")` : ''}`,
     `Colour: ${p.colour}`, `Material: ${p.material}`, `Size: ${[p.sizeSystem, p.size].filter(Boolean).join(' ')}`, `Condition: ${p.condition}`,
     `Made in (confirmed): ${p.madeIn || 'NOT CONFIRMED - do not write a Made in line unless a label photo shows it'}`,
-    `Measurements: ${p.measurements || 'none'}`, `Product code on file: ${p.productCode || 'none'}`, `Care on file: ${p.care || 'none'}`,
+    `Measurements: ${p.measurements || 'none'}`, `Product code on file: ${p.productCode || 'none'}`, ...((p.holds || []).length ? [`Not confirmed yet, do not state these and repeat them in flags: ${p.holds.join(' | ')}`] : []), `Care on file: ${p.care || 'none'}`,
     `Boutique description: ${p.boutiqueDesc || 'none'}`, `Item notes: ${p.notes || 'none'}`, `Research leads: ${p.research || 'none'}`,
   ].join('\n');
 }
@@ -393,7 +397,12 @@ export function refMatch(refs: Ref[], code: string): Ref | null {
   const n = normCode(code); if (!n) return null;
   return refs.find((r) => normCode(r.code) === n) || null;
 }
+export const refKey = (r: Ref) => (r.code ? String(r.code).trim() : 'B' + String(r.boutiqueRef || '').trim());
+export function refLinked(products: Product[], r: Ref): Product[] {
+  return products.filter((p) => (r.code && p.productCode && normCode(p.productCode) === normCode(r.code)) || (r.boutiqueRef && p.boutiqueRef && normCode(p.boutiqueRef) === normCode(r.boutiqueRef)));
+}
+export const GARMENT_CODE_MISSING = 'Garment code missing: read it from the brand label photo (the boutique ID is kept separately)';
 export function refNear(refs: Ref[], code: string): Ref[] {
   const n = normCode(code); if (n.length < 4) return [];
-  return refs.filter((r) => { const c = normCode(r.code); return c !== n && (c.includes(n) || n.includes(c)); }).slice(0, 5);
+  return refs.filter((r) => { const c = normCode(r.code); return !!c && c !== n && (c.includes(n) || n.includes(c)); }).slice(0, 5);
 }

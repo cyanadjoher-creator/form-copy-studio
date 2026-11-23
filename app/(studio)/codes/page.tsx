@@ -3,9 +3,9 @@ import { useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { api, useData } from '@/components/data';
 import { pct } from '@/components/ui';
-import { normCode, normSeason, parseCSV, refMatch, titleCase, type Product, type Ref } from '@/lib/domain';
+import { normCode, normSeason, parseCSV, refKey, refLinked, refMatch, titleCase, type Product, type Ref } from '@/lib/domain';
 
-const REF_FIELDS: [keyof Ref, string[]][] = [['code', ['product code', 'code', 'style code', 'style', 'model', 'reference', 'ref', 'sku', 'article']], ['brand', ['brand', 'designer', 'maison', 'house', 'vendor']], ['season', ['season', 'collection', 'year', 'saison']], ['name', ['name', 'item', 'title', 'description', 'product']], ['category', ['category', 'type']], ['note', ['note', 'notes', 'comment']]];
+const REF_FIELDS: [keyof Ref, string[]][] = [['boutiqueRef', ['boutique id', 'listing id', 'shopify id', 'product id']], ['code', ['product code', 'code', 'style code', 'style', 'model', 'reference', 'ref', 'article']], ['brand', ['brand', 'designer', 'maison', 'house', 'vendor']], ['season', ['season', 'collection', 'year', 'saison']], ['name', ['name', 'item', 'title', 'description', 'product']], ['category', ['category', 'type']], ['note', ['note', 'notes', 'comment']]];
 
 export default function Codes() {
   const { data, patch, toast } = useData();
@@ -13,8 +13,8 @@ export default function Codes() {
   const [q, setQ] = useState('');
   const fileRef = useRef<HTMLInputElement>(null);
   if (!data) return null;
-  const linked = (r: Ref) => data.products.filter((p) => p.productCode && normCode(p.productCode) === normCode(r.code));
-  const list = data.refs.filter((r) => !q || [r.code, r.brand, r.season, r.name].join(' ').toLowerCase().includes(q.toLowerCase()) || normCode(r.code).includes(normCode(q)));
+  const linked = (r: Ref) => refLinked(data.products, r);
+  const list = data.refs.filter((r) => !q || [r.code, r.boutiqueRef, r.brand, r.season, r.name].join(' ').toLowerCase().includes(q.toLowerCase()) || (!!r.code && normCode(r.code).includes(normCode(q))) || (!!r.boutiqueRef && normCode(r.boutiqueRef).includes(normCode(q))));
   const orphan = data.products.filter((p) => p.productCode && !refMatch(data.refs, p.productCode));
   const coded = data.products.filter((p) => p.productCode).length;
 
@@ -23,7 +23,7 @@ export default function Codes() {
     patch((d) => ({ ...d, refs: r.refs }));
     return r.added;
   }
-  const fromProduct = (p: Product): Ref => ({ code: p.productCode.trim(), brand: p.brand, season: p.season, name: p.name, category: p.category, source: 'Added from ' + (p.sku || p.id), note: '' });
+  const fromProduct = (p: Product): Ref => ({ code: p.productCode.trim(), boutiqueRef: p.boutiqueRef || '', brand: p.brand, season: p.season, name: p.name, category: p.category, source: 'Added from ' + (p.sku || p.id), note: '' });
   async function importFile(f: File) {
     let rows: string[][];
     try {
@@ -34,9 +34,9 @@ export default function Codes() {
     const head = rows[0].map((x) => String(x).toLowerCase().trim());
     const idx: Partial<Record<keyof Ref, number>> = {};
     REF_FIELDS.forEach(([k, syn]) => { let i = head.findIndex((h) => syn.includes(h)); if (i < 0) i = head.findIndex((h) => syn.some((s) => h.includes(s))); if (i >= 0 && !Object.values(idx).includes(i)) idx[k] = i; });
-    if (idx.code == null) return toast('No code column found');
+    if (idx.code == null && idx.boutiqueRef == null) return toast('No code column found');
     const g = (r: string[], k: keyof Ref) => (idx[k] != null ? String(r[idx[k]!] || '').trim() : '');
-    const refs = rows.slice(1).map((r) => ({ code: g(r, 'code'), brand: g(r, 'brand').toUpperCase(), season: g(r, 'season') ? normSeason(g(r, 'season')).season : '', name: g(r, 'name'), category: g(r, 'category'), source: f.name, note: g(r, 'note') })).filter((r) => r.code);
+    const refs = rows.slice(1).map((r) => ({ code: g(r, 'code'), boutiqueRef: g(r, 'boutiqueRef'), brand: g(r, 'brand').toUpperCase(), season: g(r, 'season') ? normSeason(g(r, 'season')).season : '', name: g(r, 'name'), category: g(r, 'category'), source: f.name, note: g(r, 'note') })).filter((r) => r.code || r.boutiqueRef);
     toast(`${await add(refs)} codes imported`);
   }
 
@@ -57,13 +57,13 @@ export default function Codes() {
             <input type="search" value={q} onChange={(e) => setQ(e.target.value)} placeholder="Type or paste the code from a label" style={{ font: '16px var(--mono)', padding: 12 }} />
             <div className="help">Spaces, dots, slashes and hyphens are ignored when matching.</div>
           </div>
-          <div className="tbl-wrap"><table><thead><tr><th>Product code</th><th>Brand</th><th>Season</th><th>Item</th><th>Category</th><th className="num">In stock</th><th>Source</th><th /></tr></thead><tbody>
+          <div className="tbl-wrap"><table><thead><tr><th>Product code</th><th>Boutique ID</th><th>Brand</th><th>Season</th><th>Item</th><th>Category</th><th className="num">In stock</th><th>Source</th><th /></tr></thead><tbody>
             {list.map((r) => { const l = linked(r); return (
-              <tr key={r.code} className={l.length ? 'click' : ''} onClick={() => l.length && router.push('/ingestion/' + l[0].id)}>
-                <td className="id">{r.code}</td><td>{titleCase(r.brand)}</td><td>{r.season || '-'}</td><td className="t">{r.name || '-'}</td><td className="small">{r.category || '-'}</td><td className="num">{l.length || '-'}</td><td className="small muted">{r.source}</td>
-                <td><button className="btn sm ghost" onClick={async (e) => { e.stopPropagation(); patch((d) => ({ ...d, refs: d.refs.filter((x) => x.code !== r.code) })); await api('/api/refs?code=' + encodeURIComponent(r.code), { method: 'DELETE' }); }}>Remove</button></td>
+              <tr key={refKey(r)} className={l.length ? 'click' : ''} onClick={() => l.length && router.push('/ingestion/' + l[0].id)}>
+                <td className="id">{r.code || <span className="ftag miss">garment code missing</span>}</td><td className="mono small">{r.boutiqueRef || '-'}</td><td>{titleCase(r.brand)}</td><td>{r.season || '-'}</td><td className="t">{r.name || '-'}</td><td className="small">{r.category || '-'}</td><td className="num">{l.length || '-'}</td><td className="small muted">{r.source}</td>
+                <td><button className="btn sm ghost" onClick={async (e) => { e.stopPropagation(); patch((d) => ({ ...d, refs: d.refs.filter((x) => refKey(x) !== refKey(r)) })); await api('/api/refs?code=' + encodeURIComponent(refKey(r)), { method: 'DELETE' }); }}>Remove</button></td>
               </tr>); })}
-            {!list.length && <tr><td colSpan={8} className="muted" style={{ padding: 30, textAlign: 'center' }}>No code matches. Add it from the item in Ingestion once checked against the label.</td></tr>}
+            {!list.length && <tr><td colSpan={9} className="muted" style={{ padding: 30, textAlign: 'center' }}>No code matches. Add it from the item in Ingestion once checked against the label.</td></tr>}
           </tbody></table></div>
         </div>
         <div>
@@ -72,7 +72,7 @@ export default function Codes() {
             <div className="drop" onDragOver={(e) => e.preventDefault()} onDrop={(e) => { e.preventDefault(); const f = e.dataTransfer.files[0]; if (f) importFile(f); }}>
               <button className="btn dark" onClick={() => fileRef.current?.click()}>Import list</button><span className="muted small">.csv or .xlsx</span></div>
             <input ref={fileRef} type="file" accept=".csv,.xlsx,.xls,.tsv" hidden onChange={(e) => { const f = e.target.files?.[0]; if (f) importFile(f); e.target.value = ''; }} />
-            <div className="help">Columns matched by name: code, brand, season, item name, category, note. Codes already in the base are skipped.</div>
+            <div className="help">Columns matched by name: code (on the garment), boutique ID, brand, season, item name, category, note. Codes already in the base are skipped.</div>
           </div>
           <div className="card">
             <div className="row between"><h3 style={{ margin: 0 }}>Codes in stock, not in the base</h3>{!!orphan.length && <button className="btn sm" onClick={async () => toast(`${await add(orphan.map(fromProduct))} codes added`)}>Add all</button>}</div>

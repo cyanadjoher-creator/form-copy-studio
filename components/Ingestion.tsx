@@ -9,7 +9,7 @@ import {
   readiness, refMatch, refNear, seasonCompose, titleCase, type Product, type Ref, type Stage, type Vocab,
 } from '@/lib/domain';
 
-const EDIT_KEYS: (keyof Product)[] = ['sku', 'productCode', 'boutiqueId', 'brand', 'name', 'category', 'colour', 'material', 'madeIn', 'measurements', 'care', 'season', 'seasonType', 'seasonYear', 'year', 'sizeSystem', 'size', 'condition', 'boutiqueDesc', 'notes', 'research', 'copy', 'boutiqueText', 'fieldSrc', 'conflicts', 'needsInfo', 'flags'];
+const EDIT_KEYS: (keyof Product)[] = ['sku', 'boutiqueRef', 'productCode', 'boutiqueId', 'brand', 'name', 'category', 'colour', 'material', 'madeIn', 'measurements', 'care', 'season', 'seasonType', 'seasonYear', 'year', 'sizeSystem', 'size', 'condition', 'boutiqueDesc', 'notes', 'research', 'copy', 'boutiqueText', 'fieldSrc', 'conflicts', 'needsInfo', 'flags', 'holds'];
 const pick = (p: Product) => Object.fromEntries(EDIT_KEYS.map((k) => [k, p[k]])) as Partial<Product>;
 const QUEUES: [string, string, (p: Product) => boolean][] = [
   ['open', 'Open items', (p) => !DONE.includes(p.status)],
@@ -205,11 +205,11 @@ export function Ingestion({ id, brand }: { id?: string; brand?: string }) {
 
           <h3 style={{ marginTop: 20 }}>Identification</h3>
           <ul className="checks" style={{ marginTop: 0 }}>
-            <li className={p.productCode ? '' : 'no'}>Product code {p.productCode ? 'recorded' : 'missing'}</li>
+            <li className={p.productCode ? '' : 'no'}>{p.productCode ? 'Product code recorded' : 'Product code missing: read it from the brand label (the boutique ID does not count)'}</li>
             <li className={hasRole(p, ROLE_LABEL) ? '' : 'no'}>Brand label photo {hasRole(p, ROLE_LABEL) ? '' : 'missing'}</li>
             <li className={hasRole(p, ROLE_CARE) ? '' : 'no'}>Care label photo {hasRole(p, ROLE_CARE) ? '' : 'missing'}</li>
           </ul>
-          <label className="f">Product code <span>as printed on the brand label</span>{tag('productCode')}</label>
+          <label className="f">Product code <span>as printed on the garment&apos;s brand label, not the boutique ID</span>{tag('productCode')}</label>
           <input type="text" value={p.productCode} onChange={(e) => edit('productCode', e.target.value)} placeholder="Style or model number" style={{ fontFamily: 'var(--mono)' }} />
           <RefBox p={p} refs={data.refs} onFill={(ref) => {
             const ns = normSeason(ref.season); const extra: Partial<Product> = {};
@@ -218,13 +218,14 @@ export function Ingestion({ id, brand }: { id?: string; brand?: string }) {
             if (isEmptyField(p, 'category') && ref.category) extra.category = ref.category;
             if (isEmptyField(p, 'season')) Object.assign(extra, { season: ns.season, seasonType: ns.type, seasonYear: ns.yv, year: ns.year });
             setP((prev) => ({ ...prev, ...extra })); schedule(); toast(Object.keys(extra).length ? 'Filled from the reference' : 'No empty fields to fill');
-          }} onUse={(code) => edit('productCode', code)} onAdd={() => addRef({ code: p.productCode.trim(), brand: p.brand, season: p.season, name: p.name, category: p.category, source: 'Added from ' + (p.sku || p.id), note: '' })} />
+          }} onUse={(code) => edit('productCode', code)} onAdd={() => addRef({ code: p.productCode.trim(), boutiqueRef: p.boutiqueRef || '', brand: p.brand, season: p.season, name: p.name, category: p.category, source: 'Added from ' + (p.sku || p.id), note: '' })} />
           <label className="f">Care instructions <span>shown on the product page</span>{tag('care')}</label>
           <textarea rows={2} value={p.care} onChange={(e) => edit('care', e.target.value)} placeholder="Read from the care label" />
 
           <h3 style={{ marginTop: 20 }}>Confirmed details</h3>
           <div className="grid g2" style={{ gap: '0 12px' }}>
-            <div style={{ gridColumn: '1/-1' }}><label className="f">Boutique SKU</label><input type="text" value={p.sku} onChange={(e) => edit('sku', e.target.value)} style={{ fontFamily: 'var(--mono)' }} /></div>
+            <div><label className="f">Boutique SKU</label><input type="text" value={p.sku} onChange={(e) => edit('sku', e.target.value)} style={{ fontFamily: 'var(--mono)' }} /></div>
+            <div><label className="f">Boutique ID <span>listing or Shopify ID</span>{tag('boutiqueRef')}</label><input type="text" value={p.boutiqueRef || ''} onChange={(e) => edit('boutiqueRef', e.target.value)} style={{ fontFamily: 'var(--mono)' }} /></div>
             <div><label className="f">Brand{tag('brand')}</label><VSelect list={v.brands} value={p.brand} onChange={(x) => edit('brand', x)} brand /></div>
             <div><label className="f">Item name{tag('name')}</label><input type="text" value={p.name} onChange={(e) => edit('name', e.target.value)} /></div>
             <div style={{ gridColumn: '1/-1' }}><label className="f">Season{p.seasonRaw && p.seasonRaw !== p.season && <span>as supplied: {p.seasonRaw}</span>}{tag('season')}</label><SeasonSelect p={p} vocab={v} onChange={(t, yv) => edit('seasonType', t, { seasonYear: yv, season: seasonCompose(t, yv), year: parseInt(yv) || null })} /></div>
@@ -259,10 +260,13 @@ export function Ingestion({ id, brand }: { id?: string; brand?: string }) {
           <textarea style={{ marginTop: 10, minHeight: 120 }} placeholder="A short note on the design, history, wear and included items." value={p.boutiqueText} onChange={(e) => edit('boutiqueText', e.target.value)} />
           <div className="row between" style={{ marginTop: 16 }}><h2 style={{ margin: 0, fontSize: 18 }}>Care · product page</h2><button className="btn sm ghost" onClick={() => copy(p.care)}>Copy care</button></div>
           <div className="small" style={{ marginTop: 8, padding: '10px 12px', background: 'var(--soft)' }}>{p.care || <span className="muted">No care instructions yet. Add a care label photo and fill the fields, or type them in.</span>}</div>
-          {!!p.flags.length && <div className="flag"><b>To verify</b><ul style={{ margin: '6px 0 0', paddingLeft: 18 }}>{p.flags.map((f) => <li key={f}>{f}</li>)}</ul></div>}
+          {!!(p.flags.length || (p.holds || []).length) && <div className="flag"><b>To verify</b><ul style={{ margin: '6px 0 0', paddingLeft: 18 }}>
+            {(p.holds || []).map((f, i) => <li key={'h' + f}><b>Held:</b> {f} <a href="#" className="small" onClick={(e) => { e.preventDefault(); edit('holds', (p.holds || []).filter((_, j) => j !== i)); }}>resolved</a></li>)}
+            {p.flags.map((f) => <li key={f}>{f}</li>)}</ul></div>}
           <h3 style={{ marginTop: 16 }}>Before approval</h3>
           <ul className="checks" style={{ marginTop: 0 }}>
             <li className={r.missing.length ? 'no' : ''}>{r.missing.length ? 'Missing: ' + r.missing.join(', ') : 'No required field missing'}</li>
+            {!!(p.holds || []).length && <li className="no">Held until confirmed: {(p.holds || []).map((x) => x.split(':')[0]).join(', ')}</li>}
             <li className={r.conflicts.length ? 'no' : ''}>{r.conflicts.length ? 'Conflicts: ' + r.conflicts.join(', ') : 'No conflict between sources'}</li>
             <li className={r.tocheck.length ? 'no' : ''}>{r.tocheck.length ? 'To check: ' + r.tocheck.join(', ') : 'Every filled-in value checked'}</li>
           </ul>
