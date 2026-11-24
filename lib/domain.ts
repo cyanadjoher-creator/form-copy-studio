@@ -1,3 +1,4 @@
+import HISTORY_REF from './history-reference.json' with { type: 'json' };
 // Shared, pure logic used by both the browser and the server.
 // No I/O here: everything is deterministic so it can be tested.
 
@@ -26,6 +27,8 @@ export type Product = {
   status: Stage; needsInfo: boolean; copy: string; boutiqueText: string; flags: string[];
   /** Checks held until confirmed (e.g. fibre on a blurry label). They survive regeneration and are cleared by hand. */
   holds: string[];
+  /** Row of the FORM garment history reference matched to this piece, if any. */
+  historyRow?: number | null;
   promptV: number | null; updated: string; history: HistoryItem[];
   fieldSrc: Record<string, string>; conflicts: Record<string, string>;
   photos: Photo[];
@@ -313,7 +316,8 @@ export function lint(p: Product) {
     add(!p.madeIn || /Made in /.test(p.copy), 'Made in line present');
     add(!(/Made in/.test(p.copy) && !p.madeIn), 'Made in only when confirmed');
     if (p.measurements) { const bl = lines.filter((l) => l.startsWith('·')); add(!!bl.length && /\d/.test(bl[bl.length - 1]), 'Measurements in final bullet'); }
-    add(!/\[.*?\]/.test(p.copy), 'No placeholders left');
+    add(!p.copy.includes(CONTEXT_MISSING), 'History context written' + (p.copy.includes(CONTEXT_MISSING) ? ': context missing' : ''));
+    add(!/\[(?!CONTEXT MISSING).*?\]/.test(p.copy), 'No placeholders left');
     add(!/\b(iconic|stunning|timeless|must-have)\b/i.test(t), 'No promotional adjectives');
   }
   return out;
@@ -355,18 +359,33 @@ export function detailsBlock(p: Product) {
     `Colour: ${p.colour}`, `Material: ${p.material}`, `Size: ${[p.sizeSystem, p.size].filter(Boolean).join(' ')}`, `Condition: ${p.condition}`,
     `Made in (confirmed): ${p.madeIn || 'NOT CONFIRMED - do not write a Made in line unless a label photo shows it'}`,
     `Measurements: ${p.measurements || 'none'}`, `Product code on file: ${p.productCode || 'none'}`, ...((p.holds || []).length ? [`Not confirmed yet, do not state these and repeat them in flags: ${p.holds.join(' | ')}`] : []), `Care on file: ${p.care || 'none'}`,
-    `Boutique description: ${p.boutiqueDesc || 'none'}`, `Item notes: ${p.notes || 'none'}`, `Research leads: ${p.research || 'none'}`,
+    `Boutique description: ${p.boutiqueDesc || 'none'}`, `Item notes: ${p.notes || 'none'}`, `Research leads from the team: ${p.research || 'none'}`,
   ].join('\n');
 }
 /** The fixed part, kept in code so editing the house prompt can never break photo reading or the output format. */
-export function buildInput(p: Product, prompt: { text: string; rules: string }, vocab: Vocab, opts: { fieldsOnly?: boolean } = {}) {
+export function historyBlock(p: Product, webSearch: boolean) {
+  const r = historyMatch(p);
+  const rec = r ? `FORM research record (garment history reference, row ${r.row}: ${r.brand} · ${r.name} · dated ${r.date} · ${r.status} · evidence scope: ${r.scope})
+${r.history ? 'Reviewed history paragraph:\n' + r.history : 'No verified history paragraph for this record.'}
+${r.sources.length ? 'Its sources:\n' + r.sources.map((s) => `- ${s.title} [${s.kind}] ${s.url}`).join('\n') : ''}
+${r.note ? 'Editorial note (binding): ' + r.note : ''}${r.status !== 'Ready for review' ? '\nThis record is ON HOLD: do not use its history in the copy.' : ''}` : 'FORM research record: none matched this piece.';
+  return `HISTORY AND CONTEXT
+The website copy opens, after the brand, name and season lines, with a short history paragraph written by the History rules above. Work in this order:
+1. If a reviewed FORM research record is given below, base the paragraph on it. You may tighten the wording, but add no claim beyond it and follow its editorial note. Return its sources.
+2. ${webSearch ? `Otherwise research it now with web search. Start from the house and the season the boutique gave (${p.brand || 'brand unknown'}, ${p.season || p.seasonRaw || 'season not given'}), then legible label text, exact print wording and distinctive construction. Collection context for that season can lead the paragraph when a distinctive feature of this piece shows how the documented idea took shape. Keep only what the sources establish.` : 'Web search is not available in this run, so only a FORM record or the team\'s research leads can support history.'}
+3. If nothing documented connects this garment to its history, do not invent one: set "context_status" to "missing", leave "history_paragraph" empty, and put the line ${CONTEXT_MISSING} on its own where the paragraph would go in website_copy. Say in flags what is missing (for example: no source for the season's collection idea).
+Return the paragraph alone in "history_paragraph" and every source it rests on in "sources" as {"title":"","url":"","supports":""}.
+
+${rec}`;
+}
+export function buildInput(p: Product, prompt: { text: string; rules: string }, vocab: Vocab, opts: { fieldsOnly?: boolean; webSearch?: boolean } = {}) {
   const roles = (p.photos || []).map((x, i) => `${i + 1}. ${x.role}`).join(', ');
   return `${opts.fieldsOnly ? '' : fillPrompt(prompt.text, p) + '\n\nHOUSE RULES\n' + prompt.rules + '\n\n'}ONTOLOGY CONTEXT
 (Not connected yet. The matching Brand, Designer, Collection Master and Look Master records will go here.)
 
 CONFIRMED DETAILS
 ${detailsBlock(p)}
-
+${opts.fieldsOnly ? '' : '\n' + historyBlock(p, !!opts.webSearch) + '\n'}
 PHOTOS
 ${roles ? `Attached in this order: ${roles}.
 Read the product code (style or model number) from the Brand label photo and the composition and care from the Care or composition label photo, exactly as printed. Read dimensions only from a Measurements photo with a legible scale. If a label is unreadable, say so in flags rather than guessing.` : 'No photos attached: work from the details only and flag what you could not verify.'}
@@ -384,12 +403,58 @@ Size systems: ${Object.keys(vocab.sizes).join(', ')}
 ${opts.fieldsOnly ? 'Do not write any copy: return empty strings for website_copy and boutique_text.' : ''}
 
 Return ONLY a JSON object, no prose around it:
-{"fields":{"brand":"","name":"","category":"","colour":"","material":"","condition":"","size_system":"","size":"","season_type":"","season_year":"","made_in":"","measurements":"","product_code":"","care_instructions":""},"website_copy":"","boutique_text":"","flags":["anything uncertain, missing, unreadable or contradictory"]}`;
+{"fields":{"brand":"","name":"","category":"","colour":"","material":"","condition":"","size_system":"","size":"","season_type":"","season_year":"","made_in":"","measurements":"","product_code":"","care_instructions":""},"context_status":"written or missing","history_paragraph":"","sources":[{"title":"","url":"","supports":""}],"website_copy":"","boutique_text":"","flags":["anything uncertain, missing, unreadable or contradictory"]}`;
 }
 export function parseModelJson(text: string): Record<string, unknown> {
   const m = text.match(/\{[\s\S]*\}/);
   if (!m) throw new Error('The model did not return JSON');
   return JSON.parse(m[0]);
+}
+
+/* ---------- garment history reference (FORM research handoff) ---------- */
+export type HistoryRecord = { row: number; brand: string; name: string; date: string; status: string; scope: string; history: string; sources: { title: string; kind: string; url: string }[]; item: { title: string; kind: string; url: string }[]; note: string };
+export const HISTORY: HistoryRecord[] = HISTORY_REF as HistoryRecord[];
+const fold = (s: string) => String(s || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().replace(/[‘’']/g, '').replace(/&/g, ' and ');
+const toks = (s: string) => fold(s).split(/[^a-z0-9]+/).filter((w) => w.length > 1 && !['and', 'with', 'the', 'of'].includes(w));
+const brandKey = (s: string) => toks(s).join(' ');
+/** Finds the reference record for this piece: same house, and the same garment by name or by its listing link. */
+export function historyMatch(p: Product): HistoryRecord | null {
+  if (p.historyRow) return HISTORY.find((r) => r.row === p.historyRow) || null;
+  const text = [p.notes, p.research, p.boutiqueDesc].join(' ');
+  const byLink = HISTORY.find((r) => r.item.some((i) => i.url && text.includes(i.url)));
+  if (byLink) return byLink;
+  const pb = brandKey(p.brand); if (!pb || !p.name) return null;
+  const pn = new Set(toks(p.name));
+  let best: HistoryRecord | null = null, score = 0;
+  for (const r of HISTORY) {
+    const rb = brandKey(r.brand);
+    if (!(rb === pb || rb.startsWith(pb + ' ') || pb.startsWith(rb + ' '))) continue;
+    const rn = toks(r.name); if (!rn.length) continue;
+    const hit = rn.filter((w) => pn.has(w)).length;
+    let s = hit / Math.max(rn.length, pn.size);
+    const ry = (r.date.match(/\b(19|20)\d\d\b/) || [])[0], py = (String(p.seasonYear || p.season).match(/\b(19|20)\d\d\b/) || [])[0];
+    if (ry && py && ry !== py && !/s\b/.test(r.date)) s -= 0.25;
+    if (s > score) { score = s; best = r; }
+  }
+  return score >= 0.6 ? best : null;
+}
+export const CONTEXT_MISSING = '[CONTEXT MISSING]';
+/** Puts the history paragraph (or the missing-context marker) right after the brand, name and season lines. */
+export function placeContext(copy: string, history: string): string {
+  let c = String(copy || '').replace(/\r/g, '').trim();
+  if (!c) return c;
+  const blocks = c.split(/\n\s*\n/);
+  const hasMarker = c.includes(CONTEXT_MISSING);
+  if (history) {
+    if (hasMarker) return c.replace(/\[CONTEXT MISSING[^\]\n]*\]\n*/g, history + '\n\n').replace(/\n{3,}/g, '\n\n').trim();
+    if (c.includes(history.slice(0, 40))) return c;
+    blocks.splice(1, 0, history);
+  } else {
+    if (hasMarker) return c;
+    // With no documented history, block 2 is the material sentence: the marker goes before it.
+    blocks.splice(1, 0, CONTEXT_MISSING);
+  }
+  return blocks.join('\n\n');
 }
 
 /* ---------- product codes ---------- */

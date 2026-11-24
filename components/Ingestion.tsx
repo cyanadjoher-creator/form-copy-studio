@@ -6,8 +6,7 @@ import { api, useData } from './data';
 import { cover, StagePill, useLightbox } from './ui';
 import {
   DONE, FIELD_LABEL, MAX_PHOTOS, PHOTO_ROLES, REQUIRED, ROLE_CARE, ROLE_LABEL, blankProduct, hasRole, isEmptyField, lint, normSeason,
-  readiness, refMatch, refNear, seasonCompose, titleCase, type Product, type Ref, type Stage, type Vocab,
-} from '@/lib/domain';
+  readiness, refMatch, refNear, seasonCompose, titleCase, type Product, type Ref, type Stage, type Vocab, historyMatch, CONTEXT_MISSING } from '@/lib/domain';
 
 const EDIT_KEYS: (keyof Product)[] = ['sku', 'boutiqueRef', 'productCode', 'boutiqueId', 'brand', 'name', 'category', 'colour', 'material', 'madeIn', 'measurements', 'care', 'season', 'seasonType', 'seasonYear', 'year', 'sizeSystem', 'size', 'condition', 'boutiqueDesc', 'notes', 'research', 'copy', 'boutiqueText', 'fieldSrc', 'conflicts', 'needsInfo', 'flags', 'holds'];
 const pick = (p: Product) => Object.fromEntries(EDIT_KEYS.map((k) => [k, p[k]])) as Partial<Product>;
@@ -243,7 +242,8 @@ export function Ingestion({ id, brand }: { id?: string; brand?: string }) {
           <label className="f">Measurements <span>go in the final bullet</span>{tag('measurements')}</label><input type="text" value={p.measurements} onChange={(e) => edit('measurements', e.target.value)} placeholder="H27 x W26 x D11 cm" />
           <label className="f">Item notes <span>condition, approved tags, unmapped columns</span></label><textarea rows={2} value={p.notes} onChange={(e) => edit('notes', e.target.value)} />
           <label className="f">Research leads <span>archive link, collection name, look number</span></label><textarea rows={2} value={p.research} onChange={(e) => edit('research', e.target.value)} />
-          {!!p.sources.length && <><label className="f">Research sources</label><ul className="src">{p.sources.map((s) => <li key={s.title}><b>{s.url ? <a href={s.url} target="_blank" rel="noreferrer">{s.title}</a> : s.title}</b><br /><span className="muted">{s.supports}</span></li>)}</ul></>}
+          {(() => { const rec = historyMatch(p); return rec ? <div className="flag" style={{ marginTop: 8 }}><b>FORM history record · row {rec.row}</b> <span className="small muted">{rec.brand} · {rec.name} · {rec.date} · {rec.scope}{rec.status !== 'Ready for review' ? ' · ON HOLD' : ''}</span>{rec.history ? <p style={{ margin: '6px 0' }}>{rec.history}</p> : <p style={{ margin: '6px 0' }}>No verified history.</p>}{rec.note && <p className="small muted" style={{ margin: 0 }}>{rec.note}</p>}</div> : <p className="small muted" style={{ marginTop: 6 }}>No FORM history record matches this piece: Generate copy will research the season on the web, and mark [CONTEXT MISSING] if nothing documented is found.</p>; })()}
+          {!!p.sources.length && <><label className="f">Research sources</label><ul className="src">{p.sources.map((s, i) => <li key={(s.url || s.title) + i}><b>{s.url ? <a href={s.url} target="_blank" rel="noreferrer">{s.title}</a> : s.title}</b><br /><span className="muted">{s.supports}</span></li>)}</ul></>}
           <div className="row between" style={{ marginTop: 14 }}><label className="f" style={{ margin: 0 }}>Original boutique description</label><button className="btn sm ghost" onClick={readText}>Read into empty fields</button></div>
           <textarea rows={3} style={{ marginTop: 6 }} value={p.boutiqueDesc} onChange={(e) => edit('boutiqueDesc', e.target.value)} />
           <div className="grid g2" style={{ gap: 8, marginTop: 16 }}>
@@ -266,6 +266,7 @@ export function Ingestion({ id, brand }: { id?: string; brand?: string }) {
           <h3 style={{ marginTop: 16 }}>Before approval</h3>
           <ul className="checks" style={{ marginTop: 0 }}>
             <li className={r.missing.length ? 'no' : ''}>{r.missing.length ? 'Missing: ' + r.missing.join(', ') : 'No required field missing'}</li>
+            {!!p.copy && <li className={p.copy.includes(CONTEXT_MISSING) ? 'no' : ''}>{p.copy.includes(CONTEXT_MISSING) ? 'History context missing in the copy' : 'History context written'}</li>}
             {!!(p.holds || []).length && <li className="no">Held until confirmed: {(p.holds || []).map((x) => x.split(':')[0]).join(', ')}</li>}
             <li className={r.conflicts.length ? 'no' : ''}>{r.conflicts.length ? 'Conflicts: ' + r.conflicts.join(', ') : 'No conflict between sources'}</li>
             <li className={r.tocheck.length ? 'no' : ''}>{r.tocheck.length ? 'To check: ' + r.tocheck.join(', ') : 'Every filled-in value checked'}</li>

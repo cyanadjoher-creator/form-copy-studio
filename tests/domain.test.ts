@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { DEFAULT_VOCAB, applyModelFields, blankProduct, lint, normCode, normSeason, parseCSV, readBoutiqueText, readiness, shopifyGroup, guessField, refMatch, refKey, refLinked } from '../lib/domain.ts';
+import { DEFAULT_VOCAB, applyModelFields, blankProduct, lint, normCode, normSeason, parseCSV, readBoutiqueText, readiness, shopifyGroup, guessField, refMatch, refKey, refLinked, historyMatch, placeContext, CONTEXT_MISSING, buildInput } from '../lib/domain.ts';
 
 test('season labels are normalised to the house vocabulary', () => {
   assert.equal(normSeason('FW04').season, 'Fall/Winter 2004');
@@ -83,4 +83,20 @@ test('boutique ID is kept apart from the garment code', () => {
   assert.equal(refKey(refs[0]), 'B16493691076943');
   const p = { ...blankProduct('B1'), boutiqueRef: '16493691076943' };
   assert.equal(refLinked([p], refs[0]).length, 1);
+});
+
+test('history reference: matched by house and garment, context marker placed after the title', () => {
+  const cel = { ...blankProduct('B0'), brand: 'CÉLINE', name: 'Black Micro Luggage Tote', season: '2010s', seasonYear: '2010s' };
+  assert.equal(historyMatch(cel)?.row, 34);
+  const dg = { ...blankProduct('B1'), brand: 'DOLCE & GABBANA', name: 'Taupe Tweed Wool Jacket', season: '2000s' };
+  assert.equal(historyMatch(dg), null);
+  const held = { ...blankProduct('B0'), brand: 'JEAN PAUL GAULTIER', name: 'Pale Peach Slip Dress' };
+  assert.equal(historyMatch(held)?.status, 'On hold');
+  const copy = 'DOLCE & GABBANA\nTaupe Tweed Wool Jacket\n2000s\n\nWool tweed jacket.\n\n· Pointed collar';
+  const marked = placeContext(copy, '');
+  assert.equal(marked.split('\n\n')[1], CONTEXT_MISSING);
+  const filled = placeContext(marked, 'A documented history paragraph.');
+  assert.equal(filled.split('\n\n')[1], 'A documented history paragraph.');
+  assert.ok(!filled.includes(CONTEXT_MISSING));
+  assert.ok(buildInput(dg, { text: 'P', rules: 'R' }, DEFAULT_VOCAB, { webSearch: true }).includes('research it now with web search'));
 });

@@ -4,7 +4,7 @@ import { findExactPhotoMatch, getProduct, saveProduct } from '@/lib/repo';
 import { runModel } from '../_run';
 
 export const dynamic = 'force-dynamic';
-export const maxDuration = 60;
+export const maxDuration = 300;
 
 /** Soukita v42: with the optional text fields blank, an exact photo-set match restores the approved copy, no model call. */
 export const POST = handle(async (req: Request) => {

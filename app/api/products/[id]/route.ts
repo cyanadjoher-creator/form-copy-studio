@@ -1,5 +1,5 @@
 import { handle, HttpError } from '@/lib/http';
-import { DONE, now, readiness, type Product } from '@/lib/domain';
+import { DONE, now, readiness, type Product, CONTEXT_MISSING } from '@/lib/domain';
 import { deleteProduct, getProduct, saveProduct } from '@/lib/repo';
 import { deletePhotoFile } from '@/lib/storage';
 
@@ -20,6 +20,7 @@ export const PATCH = handle(async (req: Request, { params }: Ctx) => {
       const bits = [r.missing.length && `missing: ${r.missing.join(', ')}`, r.conflicts.length && `conflicts: ${r.conflicts.join(', ')}`, r.tocheck.length && `to check: ${r.tocheck.join(', ')}`].filter(Boolean);
       if (bits.length) throw new HttpError(409, 'Before approving - ' + bits.join(' · '));
       if (!next.copy.trim()) throw new HttpError(409, 'No copy to approve yet');
+      if (next.copy.includes(CONTEXT_MISSING)) throw new HttpError(409, 'Before approving - the history context is missing: write it in place of [CONTEXT MISSING] or remove the marker');
     }
     if (next.status === 'In Shopify' && old.status !== 'Approved' && old.status !== 'In Shopify') throw new HttpError(409, 'Approve before marking as in Shopify');
     next.history = [...(next.history || []), { t: now(), s: next.status, n: body.note || '' }];
