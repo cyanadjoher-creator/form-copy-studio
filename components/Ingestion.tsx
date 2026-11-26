@@ -9,6 +9,7 @@ import {
   readiness, refMatch, refNear, seasonCompose, titleCase, type Product, type Ref, type Stage, type Vocab } from '@/lib/domain';
 
 import { approveIssues, copyControl, copyForShopify } from '@/lib/copy-workflow';
+const titleCaseShop = (s: string) => s.replace(/\b\w/g, (c) => c.toUpperCase());
 
 const EDIT_KEYS: (keyof Product)[] = ['sku', 'tempId', 'listingUrl', 'verifiedWear', 'boutiqueRef', 'productCode', 'boutiqueId', 'brand', 'name', 'category', 'colour', 'material', 'madeIn', 'measurements', 'care', 'season', 'seasonType', 'seasonYear', 'year', 'sizeSystem', 'size', 'condition', 'boutiqueDesc', 'notes', 'research', 'copy', 'boutiqueText', 'fieldSrc', 'conflicts', 'needsInfo', 'flags', 'holds'];
 const pick = (p: Product) => Object.fromEntries(EDIT_KEYS.map((k) => [k, p[k]])) as Partial<Product>;
@@ -259,7 +260,7 @@ export function Ingestion({ id, brand }: { id?: string; brand?: string }) {
           <label className="f">Item notes <span>condition, approved tags, unmapped columns</span></label><textarea rows={2} value={p.notes} onChange={(e) => edit('notes', e.target.value)} />
           <label className="f">Research leads <span>archive link, collection name, look number</span></label><textarea rows={2} value={p.research} onChange={(e) => edit('research', e.target.value)} />
           <p className="small muted">Generate copy matches Copy Context against the boutique and item identifiers. A similar title is not proof of a match.</p>
-          {p.copyControl?.contextOrigin && <p className="small">Evidence source · {p.copyControl.contextOrigin}{p.copyControl.contextKey ? ' · '+p.copyControl.contextKey : ''}</p>}
+          {p.copyControl?.contextOrigin && <p className="small">History from · {({ snapshot: 'FORM tracker (copy built into the site)', sheets: 'FORM tracker (live from Google)', unavailable: 'tracker not readable' } as Record<string, string>)[p.copyControl.contextOrigin] || p.copyControl.contextOrigin}{p.copyControl.contextKey ? ' · row ' + p.copyControl.contextKey.split('|').pop()!.toUpperCase() + ' (' + titleCaseShop(p.copyControl.contextKey.split('|')[0]) + ')' : ''}</p>}
           {!!p.sources.length && <><label className="f">Research sources</label><ul className="src">{p.sources.map((s, i) => <li key={(s.url || s.title) + i}><b>{s.url ? <a href={s.url} target="_blank" rel="noreferrer">{s.title}</a> : s.title}</b><br /><span className="muted">{s.supports}</span></li>)}</ul></>}
           <div className="row between" style={{ marginTop: 14 }}><label className="f" style={{ margin: 0 }}>Original boutique description</label><button className="btn sm ghost" onClick={readText}>Read into empty fields</button></div>
           <textarea rows={3} style={{ marginTop: 6 }} value={p.boutiqueDesc} onChange={(e) => edit('boutiqueDesc', e.target.value)} />

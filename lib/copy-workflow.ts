@@ -111,7 +111,7 @@ export function applyDraft(p: Product, j: Record<string,unknown>, ctx: ContextRe
   p.boutiqueText=heldCare||heldFibre||heldLining ? '' : scrub(j.boutique_text,2000);
   p.historyRow=rec?.row || null;
   p.copyControl={history,paragraph,header,photos:samePhotos?'confirmed':'unreviewed',blockers,contextOrigin:ctx.origin,contextKey:rec?.key};
-  p.flags=[...new Set([...blockers,...stringList(j.flags),paragraph?'History draft needs editorial source review.':'No sufficiently supported history was added.',rec?.note||'',rec?'History record matched · '+ctx.origin+' · '+rec.scope:''].filter(Boolean))];
+  p.flags=[...new Set([...blockers,...stringList(j.flags),paragraph?'History draft needs editorial source review.':'No sufficiently supported history was added.',rec?.note||'',rec?'History record matched · FORM tracker row '+(rec.tempId||rec.row)+' · '+rec.scope:''].filter(Boolean))];
   return p;
 }
 
