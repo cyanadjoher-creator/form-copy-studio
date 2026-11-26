@@ -1,4 +1,5 @@
 import { HISTORY, type Product, type Source } from './domain.ts';
+import TRACKER_SNAPSHOT from './copy-context-snapshot.json' with { type: 'json' };
 
 export type CopyContext = {
   key: string; boutique: string; tempId: string; supplierId: string; brand: string; name: string; date: string;
@@ -67,7 +68,13 @@ export function lookupContext(records: CopyContext[], p: Product, boutique: stri
   return {record,origin};
 }
 
-export const snapshotContext = (): CopyContext[] => HISTORY.flatMap(r=>{
+/** Copy Context exported from the tracker (no Google key needed). Replace lib/copy-context-snapshot.json to refresh it. */
+let trackerRows: CopyContext[] | undefined;
+export const snapshotContext = (): CopyContext[] => {
+  if (!trackerRows) { try { trackerRows = parseContextGrid((TRACKER_SNAPSHOT as { grid: unknown[][] }).grid); } catch { trackerRows = []; } }
+  return trackerRows.length ? trackerRows : referenceSnapshot();
+};
+const referenceSnapshot = (): CopyContext[] => HISTORY.flatMap(r=>{
   const site = r.item.map(x=>shopNames[canonicalListing(x.url).split('/')[0]]).find(Boolean);
   return site ? [{key:'',boutique:site,tempId:'',supplierId:'',brand:r.brand,name:r.name,date:r.date,row:r.row,
     copyStatus:r.status,historyStatus:'Needs review',scope:r.scope,paragraph:r.history,note:r.note,sources:sources(r.sources),itemSources:sources(r.item)}] : [];
