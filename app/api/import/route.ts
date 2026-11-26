@@ -45,7 +45,10 @@ export const POST = handle(async (req: Request) => {
       category: canon(vocab.categories, o.category || ''), colour: canon(vocab.colours, o.colour || ''),
       material: canon(vocab.materials, o.material || ''), condition: canon(vocab.conditions, o.condition || ''),
       size: o.size || '', madeIn: o.madeIn || '', measurements: o.measurements || '', care: o.care || '', price: o.price || '',
-      boutiqueDesc: o.boutiqueDesc || '', notes: o.notes || '',
+      boutiqueDesc: o.boutiqueDesc || '',
+      sizeSystem: Object.keys(vocab.sizes).find((s) => s.toLowerCase() === String(o.sizeSystem || '').trim().toLowerCase()) || '',
+      notes: [o.listingTitle && 'Listing title: ' + o.listingTitle, o.photoFolder && 'Photo folder: ' + o.photoFolder, o.notes].filter(Boolean).join('\n'),
+      research: [o.researchCollection && 'Collection: ' + o.researchCollection, o.researchLook && 'Look: ' + o.researchLook, o.research, o.researchLinks && 'Links: ' + o.researchLinks].filter(Boolean).join('\n'),
       seasonRaw: o.seasonRaw || '', season: ns.season, seasonType: ns.type, seasonYear: ns.yv, year: ns.year,
       history: [{ t: now(), s: 'Imported', n: 'from ' + (rowName || bname) }],
     });

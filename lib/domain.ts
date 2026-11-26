@@ -133,10 +133,13 @@ export const VOCAB_LISTS: { key: keyof Vocab; label: string; field: keyof Produc
 ];
 
 /* ---------- import mapping ---------- */
-export const FIELDS: [keyof Product | 'boutiqueName', string, string[]][] = [
+/** Import-only columns, combined into Item notes or Research leads on import. */
+export type ImportExtra = 'boutiqueName' | 'listingTitle' | 'photoFolder' | 'researchCollection' | 'researchLook' | 'researchLinks';
+export const FIELDS: [keyof Product | ImportExtra, string, string[]][] = [
   ['boutiqueName', 'Boutique (per row)', ['boutique']],
   ['tempId', 'Tracker Temp ID', ['temp id', 'tracker temp id']],
   ['listingUrl', 'Original listing URL', ['boutique shop link', 'listing url', 'product url']],
+  ['listingTitle', 'Original title (as listed by the boutique)', ['original title', 'boutique title', 'listing title']],
   ['sku', 'Boutique SKU', ['variant sku', 'sku', 'stock', 'stock number', 'boutique ref', 'ref']],
   // The boutique's own listing or Shopify ID. Kept apart from the code printed on the garment.
   ['boutiqueRef', 'Boutique ID (listing or Shopify ID)', ['supplier product id', 'id', 'product id', 'shopify id', 'listing id', 'boutique id', 'item id', 'variant id']],
@@ -145,14 +148,22 @@ export const FIELDS: [keyof Product | 'boutiqueName', string, string[]][] = [
   ['name', 'Item name', ['product / description', 'title', 'name', 'item', 'product', 'product name', 'item name', 'nom']],
   ['category', 'Category', ['product type', 'product category', 'category', 'type', 'categorie', 'catégorie', 'department']],
   ['seasonRaw', 'Season / era', ['season', 'collection', 'saison', 'year', 'era', 'date']],
+  ['sizeSystem', 'Size system', ['size system']],
   ['size', 'Size', ['size', 'taille']],
   ['condition', 'Condition', ['condition', 'état', 'etat', 'grade']],
+  ['verifiedWear', 'Verified wear (checked, not the seller grade)', ['verified wear']],
   ['material', 'Material', ['material', 'composition', 'fabric', 'matière', 'matiere']],
   ['colour', 'Colour', ['colour', 'color', 'couleur', 'colorway', 'colourway']],
   ['madeIn', 'Made in', ['made in', 'origin', 'country', 'country of origin', 'provenance', 'fabrication']],
   ['measurements', 'Measurements', ['measurements', 'dimensions', 'mesures', 'measures']],
   ['price', 'Price', ['variant price', 'price', 'prix', 'retail', 'resale price']],
   ['care', 'Care instructions', ['care', 'care instructions', 'washing', 'wash', 'entretien']],
+  ['notes', 'Item notes (internal)', ['item notes', 'internal notes']],
+  ['research', 'Research leads (context)', ['research leads', 'context leads']],
+  ['researchCollection', 'Collection name (context)', ['collection name']],
+  ['researchLook', 'Look number (context)', ['look number']],
+  ['researchLinks', 'Reference links (context)', ['reference links', 'archive links', 'runway links']],
+  ['photoFolder', 'Photo folder', ['photo folder']],
   ['boutiqueDesc', 'Boutique description', ['boutique description (source)', 'body (html)', 'body', 'description', 'notes', 'details', 'remarks', 'commentaire', 'comments']],
 ];
 export function guessField(header: string): string {

@@ -72,6 +72,7 @@ function Stock() {
       <p className="lede">Import the stock: a Shopify product export (CSV) or the boutique&apos;s own file (CSV or Excel). Columns are matched to FORM fields, the boutique description is read into empty fields, and every item shows what is missing or conflicting. Nothing syncs automatically: products are still edited in Shopify.</p>
       <div className="card" style={{ marginBottom: 14 }}>
         <div className="drop" onDragOver={(e) => e.preventDefault()} onDrop={(e) => { e.preventDefault(); const f = e.dataTransfer.files[0]; if (f) readFile(f); }}>
+          <a className="btn ghost" href="/templates/FORM_Copy_Studio_Stock_Template.xlsx" download>Download the Excel template</a>
           <button className="btn dark" onClick={() => fileRef.current?.click()}>Import stock list</button>
           <span className="muted">or drop a Shopify export or a boutique .csv / .xlsx here</span>
           <span style={{ flex: 1 }} />
@@ -145,7 +146,7 @@ function MapModal({ rows, name, onClose, onDone }: { rows: string[][]; name: str
     const items = body.map((r) => {
       const o: Record<string, string> = {}; const extra: string[] = [];
       head.forEach((h, i) => { const v = String(r[i] ?? '').trim(); if (!v) return; if (/^FORM (title|description) draft$/i.test(h.trim()) && !map[i]) return; if (map[i]) o[map[i]] = o[map[i]] ? o[map[i]] + ' ' + v : v; else extra.push(`${h}: ${v}`); });
-      if (extra.length) o.notes = extra.join('\n');
+      if (extra.length) o.notes = [o.notes, ...extra].filter(Boolean).join('\n');
       return o;
     });
     setBusy(true);
