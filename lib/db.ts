@@ -15,7 +15,7 @@ export function dbKind(): string {
 const isPreview = () => process.env.VERCEL_ENV === 'preview';
 export function dbUrl(): string | undefined {
   if (isPreview()) {
-    const t = process.env.TEST_DATABASE_URL || process.env.TEST_POSTGRES_URL;
+    const t = process.env.TEST_DATABASE_URL || process.env.TEST_URL || process.env.TEST_POSTGRES_URL;
     if (!t) throw new Error('This preview has no test database. Connect a separate Neon database to Preview with the prefix TEST (TEST_DATABASE_URL), then redeploy.');
     return t;
   }
