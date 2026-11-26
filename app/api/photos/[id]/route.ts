@@ -1,6 +1,7 @@
 import { handle, HttpError } from '@/lib/http';
 import { PHOTO_ROLES } from '@/lib/domain';
-import { getPhoto, getProduct, removePhoto, updatePhoto } from '@/lib/repo';
+import { getPhoto, getProduct, removePhoto, updatePhoto, saveProduct } from '@/lib/repo';
+import { photoChanged } from '@/lib/copy-workflow';
 import { deletePhotoFile } from '@/lib/storage';
 
 type Ctx = { params: Promise<{ id: string }> };
@@ -13,7 +14,7 @@ export const PATCH = handle(async (req: Request, { params }: Ctx) => {
   const { role } = await req.json();
   if (!(PHOTO_ROLES as readonly string[]).includes(role)) throw new HttpError(400, 'Unknown photo role');
   await updatePhoto(id, role);
-  return getProduct(ph.product_id);
+  const p=await getProduct(ph.product_id); photoChanged(p); return saveProduct(p);
 });
 
 export const DELETE = handle(async (_req: Request, { params }: Ctx) => {
@@ -22,5 +23,5 @@ export const DELETE = handle(async (_req: Request, { params }: Ctx) => {
   if (!ph) throw new HttpError(404, 'Photo not found');
   await removePhoto(id);
   if (!ph.url.startsWith('/seed/')) await deletePhotoFile(ph.url);
-  return getProduct(ph.product_id);
+  const p=await getProduct(ph.product_id); photoChanged(p); return saveProduct(p);
 });

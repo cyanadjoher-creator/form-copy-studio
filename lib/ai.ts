@@ -18,7 +18,7 @@ export function aiModel() {
   return p;
 }
 
-export type ModelResult = { text: string; notes: string[]; searches: number };
+export type ModelResult = { text: string; notes: string[]; searches: number; searchUrls?: string[] };
 
 /** One model call. With webSearch, Claude can research the garment's history on the web (Anthropic's web search tool). */
 export async function callModel(input: string, images: ModelImage[], opts: { webSearch?: boolean } = {}): Promise<ModelResult> {
@@ -40,16 +40,18 @@ export async function callModel(input: string, images: ModelImage[], opts: { web
       const messages: Record<string, unknown>[] = [{ role: 'user', content }];
       const tools = search ? [{ type: 'web_search_20250305', name: 'web_search', max_uses: Number(process.env.WEB_SEARCH_MAX || 6) }] : undefined;
       let searches = 0;
+      const searchUrls = new Set<string>();
       // A long research turn can pause: send it back as is so Claude finishes (at most a few rounds).
       for (let round = 0; round < 4; round++) {
         const res = await client.messages.create({ model: aiModel(), max_tokens: 8000, messages: messages as never, ...(tools ? { tools: tools as never } : {}) });
-        const blocks = res.content as unknown as { type: string; text?: string }[];
+        const blocks = res.content as unknown as { type: string; text?: string; content?: unknown }[];
+        for (const b of blocks) if (b.type === 'web_search_tool_result' && Array.isArray(b.content)) for (const hit of b.content) if (hit?.type === 'web_search_result' && typeof hit.url === 'string') searchUrls.add(hit.url);
         searches += blocks.filter((b) => b.type === 'server_tool_use').length;
         if (res.stop_reason === 'pause_turn') { messages.push({ role: 'assistant', content: res.content }); continue; }
         // The answer is the text written after the last search result.
         const last = blocks.map((b) => b.type).lastIndexOf('web_search_tool_result');
         const text = blocks.slice(last + 1).filter((b) => b.type === 'text').map((b) => b.text || '').join('');
-        return { text: text || blocks.filter((b) => b.type === 'text').map((b) => b.text || '').join(''), searches };
+        return { text: text || blocks.filter((b) => b.type === 'text').map((b) => b.text || '').join(''), searches, searchUrls:[...searchUrls] };
       }
       throw new HttpError(504, 'The research took too long. Try again.');
     };
@@ -87,11 +89,9 @@ function mockAnswer(input: string, images: ModelImage[]) {
   const care = /Care or composition label/.test(roles);
   const fieldsOnly = /Do not write any copy/.test(input);
   return JSON.stringify({
-    fields: { colour: 'Black', category: 'Jackets', material: 'Wool', condition: '', size_system: '', size: '', season_type: '', season_year: '', made_in: label ? 'Italy' : '', measurements: '', product_code: label ? 'MOCK-CODE-1' : '', care_instructions: care ? 'Dry clean only.' : '' },
-    context_status: /Reviewed history paragraph/.test(input) ? 'written' : 'missing',
-    history_paragraph: (input.match(/Reviewed history paragraph:\n(.+)/) || [])[1] || '',
+    fields: { colour: images.length ? 'Black' : '', category: images.length ? 'Jackets' : '', material: images.length ? 'Wool' : '', condition: '', size_system: '', size: '', season_type: '', season_year: '', made_in: label ? 'Italy' : '', measurements: '', product_code: label ? 'MOCK-CODE-1' : '', care_instructions: care ? 'Dry clean only.' : '' },
+    photo_set_status:'consistent', product_name:'Mock Jacket', product_sentence:fieldsOnly?'':'Tweed jacket', construction:fieldsOnly?[]:['Button closure'], damage:[], history_paragraph:'',
     sources: [],
-    website_copy: fieldsOnly ? '' : 'MOCK BRAND\nMock item\nFall/Winter 2004\n\nWool jacket.\n\n· Button closure',
     boutique_text: fieldsOnly ? '' : 'Mock boutique text.',
     flags: [`Mock model saw ${images.length} photo(s): ${roles}`],
   });

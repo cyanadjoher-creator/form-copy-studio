@@ -6,9 +6,11 @@ import { api, useData } from './data';
 import { cover, StagePill, useLightbox } from './ui';
 import {
   DONE, FIELD_LABEL, MAX_PHOTOS, PHOTO_ROLES, REQUIRED, ROLE_CARE, ROLE_LABEL, blankProduct, hasRole, isEmptyField, lint, normSeason,
-  readiness, refMatch, refNear, seasonCompose, titleCase, type Product, type Ref, type Stage, type Vocab, historyMatch, CONTEXT_MISSING } from '@/lib/domain';
+  readiness, refMatch, refNear, seasonCompose, titleCase, type Product, type Ref, type Stage, type Vocab } from '@/lib/domain';
 
-const EDIT_KEYS: (keyof Product)[] = ['sku', 'boutiqueRef', 'productCode', 'boutiqueId', 'brand', 'name', 'category', 'colour', 'material', 'madeIn', 'measurements', 'care', 'season', 'seasonType', 'seasonYear', 'year', 'sizeSystem', 'size', 'condition', 'boutiqueDesc', 'notes', 'research', 'copy', 'boutiqueText', 'fieldSrc', 'conflicts', 'needsInfo', 'flags', 'holds'];
+import { approveIssues, copyControl, copyForShopify } from '@/lib/copy-workflow';
+
+const EDIT_KEYS: (keyof Product)[] = ['sku', 'tempId', 'listingUrl', 'verifiedWear', 'boutiqueRef', 'productCode', 'boutiqueId', 'brand', 'name', 'category', 'colour', 'material', 'madeIn', 'measurements', 'care', 'season', 'seasonType', 'seasonYear', 'year', 'sizeSystem', 'size', 'condition', 'boutiqueDesc', 'notes', 'research', 'copy', 'boutiqueText', 'fieldSrc', 'conflicts', 'needsInfo', 'flags', 'holds'];
 const pick = (p: Product) => Object.fromEntries(EDIT_KEYS.map((k) => [k, p[k]])) as Partial<Product>;
 const QUEUES: [string, string, (p: Product) => boolean][] = [
   ['open', 'Open items', (p) => !DONE.includes(p.status)],
@@ -65,8 +67,10 @@ export function Ingestion({ id, brand }: { id?: string; brand?: string }) {
       setCurId(saved.id);
       window.history.replaceState(null, '', '/ingestion/' + saved.id);
     } else {
-      saved = await api<Product>('/api/products/' + cur.id, { method: 'PATCH', body: { patch: pick(cur) } });
+      saved = await api<Product>('/api/products/' + cur.id, { method: 'PATCH', body: { patch: pick(cur), revision:cur.revision } });
     }
+    if (latest.current === cur) { latest.current=saved; setP(saved); }
+    else setP(prev=>({...prev,revision:saved.revision}));
     setProduct(saved);
     return saved;
   }, [curId, setProduct]);
@@ -89,7 +93,7 @@ export function Ingestion({ id, brand }: { id?: string; brand?: string }) {
     try { return await fn(); } catch (e) { toast(e instanceof Error ? e.message : 'Something went wrong'); }
     finally { setBusy(''); }
   }
-  const take = (np: Product) => { setP(np); setProduct(np); };
+  const take = (np: Product) => { latest.current=np; setP(np); setProduct(np); };
 
   async function upload(files: FileList | File[]) {
     const list = [...files].filter((f) => /^image\//.test(f.type)).slice(0, Math.max(0, MAX_PHOTOS - p.photos.length));
@@ -111,9 +115,9 @@ export function Ingestion({ id, brand }: { id?: string; brand?: string }) {
   async function runAi(kind: 'fill' | 'generate') {
     await action(kind, async () => {
       const cur = await persist();
-      const r = await api<{ product: Product; filled?: string[]; matched?: string }>('/api/ai/' + kind, { body: { id: cur.id } });
+      const r = await api<{ product: Product; filled?: string[]; matched?: string; blocked?: boolean }>('/api/ai/' + kind, { body: { id: cur.id } });
       take(r.product);
-      toast(r.matched ? 'Approved copy loaded from the archive' : kind === 'fill' ? (r.filled?.length ? 'Filled: ' + r.filled.map((k) => FIELD_LABEL[k] || k).join(', ') : 'Nothing new to fill: see the notes') : 'Draft ready');
+      toast(r.matched ? 'Approved copy loaded from the archive' : kind === 'fill' ? (r.filled?.length ? 'Filled: ' + r.filled.map((k) => FIELD_LABEL[k] || k).join(', ') : 'Nothing new to fill: see the notes') : r.blocked ? 'Draft needs a check · see To verify' : 'Draft ready');
     });
   }
   async function readText() {
@@ -127,11 +131,19 @@ export function Ingestion({ id, brand }: { id?: string; brand?: string }) {
   async function setStatus(s: Stage) {
     await action('status', async () => {
       const cur = await persist();
-      const np = await api<Product>('/api/products/' + cur.id, { method: 'PATCH', body: { patch: { status: s } } });
+      const np = await api<Product>('/api/products/' + cur.id, { method: 'PATCH', body: { patch: { status: s }, revision:cur.revision } });
       take(np); toast(s);
       if (s === 'Approved') { const next = queueList.find((x) => x.id !== np.id && !DONE.includes(x.status)); if (next) router.push('/ingestion/' + next.id); }
     });
   }
+  async function reviewCopy(review: 'confirm-photos' | 'accept-history' | 'omit-history') {
+    await action('review',async()=>{
+      const cur=await persist();
+      take(await api<Product>('/api/products/'+cur.id,{method:'PATCH',body:{review,revision:cur.revision}}));
+      toast(review==='confirm-photos'?'Photo set confirmed':review==='accept-history'?'History reviewed':'History omitted from the draft');
+    });
+  }
+
   function markChecked(k: string) {
     setP((prev) => { const conflicts = { ...prev.conflicts }; delete conflicts[k]; return { ...prev, fieldSrc: { ...prev.fieldSrc, [k]: 'checked' }, conflicts }; });
     schedule();
@@ -240,9 +252,14 @@ export function Ingestion({ id, brand }: { id?: string; brand?: string }) {
             <div style={{ gridColumn: '1/-1' }}><label className="f">Made in <span>verified only</span>{tag('madeIn')}</label><input type="text" value={p.madeIn} onChange={(e) => edit('madeIn', e.target.value)} /></div>
           </div>
           <label className="f">Measurements <span>go in the final bullet</span>{tag('measurements')}</label><input type="text" value={p.measurements} onChange={(e) => edit('measurements', e.target.value)} placeholder="H27 x W26 x D11 cm" />
+          <label className="f">Tracker Temp ID</label><input value={p.tempId || ''} onChange={(e)=>edit('tempId',e.target.value)} placeholder="OP-7" />
+          <label className="f">Original listing URL</label><input value={p.listingUrl || ''} onChange={(e)=>edit('listingUrl',e.target.value)} />
+          <label className="f">Verified overall wear <span>from checked item evidence, not a seller grade</span></label>
+          <input value={p.verifiedWear || ''} onChange={e=>edit('verifiedWear',e.target.value)} placeholder="Light wear" />
           <label className="f">Item notes <span>condition, approved tags, unmapped columns</span></label><textarea rows={2} value={p.notes} onChange={(e) => edit('notes', e.target.value)} />
           <label className="f">Research leads <span>archive link, collection name, look number</span></label><textarea rows={2} value={p.research} onChange={(e) => edit('research', e.target.value)} />
-          {(() => { const rec = historyMatch(p); return rec ? <div className="flag" style={{ marginTop: 8 }}><b>FORM history record · row {rec.row}</b> <span className="small muted">{rec.brand} · {rec.name} · {rec.date} · {rec.scope}{rec.status !== 'Ready for review' ? ' · ON HOLD' : ''}</span>{rec.history ? <p style={{ margin: '6px 0' }}>{rec.history}</p> : <p style={{ margin: '6px 0' }}>No verified history.</p>}{rec.note && <p className="small muted" style={{ margin: 0 }}>{rec.note}</p>}</div> : <p className="small muted" style={{ marginTop: 6 }}>No FORM history record matches this piece: Generate copy will research the season on the web, and mark [CONTEXT MISSING] if nothing documented is found.</p>; })()}
+          <p className="small muted">Generate copy matches Copy Context against the boutique and item identifiers. A similar title is not proof of a match.</p>
+          {p.copyControl?.contextOrigin && <p className="small">Evidence source · {p.copyControl.contextOrigin}{p.copyControl.contextKey ? ' · '+p.copyControl.contextKey : ''}</p>}
           {!!p.sources.length && <><label className="f">Research sources</label><ul className="src">{p.sources.map((s, i) => <li key={(s.url || s.title) + i}><b>{s.url ? <a href={s.url} target="_blank" rel="noreferrer">{s.title}</a> : s.title}</b><br /><span className="muted">{s.supports}</span></li>)}</ul></>}
           <div className="row between" style={{ marginTop: 14 }}><label className="f" style={{ margin: 0 }}>Original boutique description</label><button className="btn sm ghost" onClick={readText}>Read into empty fields</button></div>
           <textarea rows={3} style={{ marginTop: 6 }} value={p.boutiqueDesc} onChange={(e) => edit('boutiqueDesc', e.target.value)} />
@@ -250,11 +267,11 @@ export function Ingestion({ id, brand }: { id?: string; brand?: string }) {
             <button className="btn" style={{ justifyContent: 'center', padding: 12 }} onClick={() => runAi('fill')}>{busy === 'fill' ? 'Reading the photos…' : 'Fill fields from photos'}</button>
             <button className="btn dark" style={{ justifyContent: 'center', padding: 12 }} onClick={() => runAi('generate')}>{busy === 'generate' ? 'Writing…' : 'Generate copy'}</button>
           </div>
-          <div className="help">Both read the photos. Empty fields are filled from what the labels and the garment show and flagged for checking; filled fields are never overwritten, disagreements show as conflicts. Generate copy also writes the copy with the active prompt (v{activeV}). With the text fields empty, photos that exactly match an approved entry bring back its approved copy without calling the model.</div>
+          <div className="help">Photo evidence fills blank fields for review. Exact archived files, or a confirmed item with a verified photo set, can restore approved archive wording as a new local draft. Generating new copy never carries over approval.</div>
         </div>
 
         <div className={'card out' + (busy ? ' busy' : '')}>
-          <div className="row between"><h2 style={{ margin: 0 }}>Website copy</h2><div className="row"><button className="btn sm ghost" onClick={() => copy(p.copy)}>Copy text</button><button className="btn sm" onClick={() => copy([p.copy, p.care ? 'Care: ' + p.care : ''].filter(Boolean).join('\n\n'), 'Copied: paste into the Shopify product description')}>Copy for Shopify</button></div></div>
+          <div className="row between"><h2 style={{ margin: 0 }}>Website copy</h2><button className="btn sm ghost" onClick={() => copy(p.copy)}>Copy text</button></div>
           <textarea style={{ marginTop: 10 }} placeholder="Your draft will appear here." value={p.copy} onChange={(e) => edit('copy', e.target.value)} />
           <div className="row between" style={{ marginTop: 16 }}><h2 style={{ margin: 0, fontSize: 18 }}>Boutique text</h2><button className="btn sm ghost" onClick={() => copy(p.boutiqueText)}>Copy boutique text</button></div>
           <textarea style={{ marginTop: 10, minHeight: 120 }} placeholder="A short note on the design, history, wear and included items." value={p.boutiqueText} onChange={(e) => edit('boutiqueText', e.target.value)} />
@@ -263,22 +280,32 @@ export function Ingestion({ id, brand }: { id?: string; brand?: string }) {
           {!!(p.flags.length || (p.holds || []).length) && <div className="flag"><b>To verify</b><ul style={{ margin: '6px 0 0', paddingLeft: 18 }}>
             {(p.holds || []).map((f, i) => <li key={'h' + f}><b>Held:</b> {f} <a href="#" className="small" onClick={(e) => { e.preventDefault(); edit('holds', (p.holds || []).filter((_, j) => j !== i)); }}>resolved</a></li>)}
             {p.flags.map((f) => <li key={f}>{f}</li>)}</ul></div>}
+          <div className="row">
+            {p.photos.length>0 && copyControl(p).photos!=='confirmed' && !DONE.includes(p.status) && <button className="btn ghost" onClick={()=>reviewCopy('confirm-photos')}>Confirm all photos match</button>}
+            {!!copyControl(p).paragraph && !DONE.includes(p.status) && <button className="btn ghost" onClick={()=>reviewCopy('accept-history')}>Accept sourced history</button>}
+            {['candidate','missing'].includes(copyControl(p).history) && !DONE.includes(p.status) && <button className="btn ghost" onClick={()=>reviewCopy('omit-history')}>Omit history after review</button>}
+          </div>
           <h3 style={{ marginTop: 16 }}>Before approval</h3>
           <ul className="checks" style={{ marginTop: 0 }}>
             <li className={r.missing.length ? 'no' : ''}>{r.missing.length ? 'Missing: ' + r.missing.join(', ') : 'No required field missing'}</li>
-            {!!p.copy && <li className={p.copy.includes(CONTEXT_MISSING) ? 'no' : ''}>{p.copy.includes(CONTEXT_MISSING) ? 'History context missing in the copy' : 'History context written'}</li>}
+            {!!p.copy && <li className={['accepted','omitted','archive'].includes(copyControl(p).history)?'':'no'}>{copyControl(p).history==='accepted'?'History reviewed':copyControl(p).history==='omitted'?'History omitted after review':copyControl(p).history==='archive'?'History from the approved archive':copyControl(p).history==='candidate'?'History drafted · review sources':'No reviewed history paragraph'}</li>}
             {!!(p.holds || []).length && <li className="no">Held until confirmed: {(p.holds || []).map((x) => x.split(':')[0]).join(', ')}</li>}
             <li className={r.conflicts.length ? 'no' : ''}>{r.conflicts.length ? 'Conflicts: ' + r.conflicts.join(', ') : 'No conflict between sources'}</li>
             <li className={r.tocheck.length ? 'no' : ''}>{r.tocheck.length ? 'To check: ' + r.tocheck.join(', ') : 'Every filled-in value checked'}</li>
           </ul>
+          {!!p.copy && !DONE.includes(p.status) && !!approveIssues(p).length && <p className="small muted">{approveIssues(p).join(" · ")}</p>}
           <h3 style={{ marginTop: 16 }}>House style check</h3>
           <ul className="checks">{checks.map((c) => <li key={c.label} className={c.ok ? '' : 'no'}>{c.label}</li>)}</ul>
           <div className="grid g2" style={{ marginTop: 16, gap: 8 }}>
             <button className="btn" style={{ justifyContent: 'center' }} onClick={() => setStatus('In review')}>Send to review</button>
             <button className="btn dark" style={{ justifyContent: 'center' }} onClick={() => setStatus('Approved')}>Approve</button>
             <button className="btn ghost" style={{ justifyContent: 'center' }} onClick={() => edit('needsInfo', !p.needsInfo)}>{p.needsInfo ? 'Clear needs info' : 'Ask boutique for info'}</button>
-            <button className="btn ghost" style={{ justifyContent: 'center' }} onClick={() => setStatus('In Shopify')}>Mark as in Shopify</button>
+            <button className="btn ghost" disabled={p.status!=='Approved'} style={{ justifyContent: 'center' }} onClick={() => setStatus('In Shopify')}>Mark as in Shopify</button>
           </div>
+          {DONE.includes(p.status) && <details style={{ marginTop: 16 }}><summary>Shopify fields · copy individually</summary>
+            {Object.entries(copyForShopify(p)).map(([key,value])=><div key={key} className="row between" style={{marginTop:6}}><span>{key.replace(/_/g,' ')}</span><button className="btn sm ghost" disabled={!value} onClick={()=>copy(value)}>Copy {key.replace(/_/g,' ')}</button></div>)}
+          </details>}
+          {p.previousApproval && <details style={{marginTop:12}}><summary>Previous approval · {p.previousApproval.at}</summary><pre className="code">{p.previousApproval.copy}</pre></details>}
           {!isNew && <><h3 style={{ marginTop: 18 }}>History</h3><div className="hist">{[...p.history].reverse().map((h, i) => <div key={i}>{h.t} · {h.s}{h.n ? ' · ' + h.n : ''}</div>)}</div></>}
         </div>
       </div>

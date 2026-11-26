@@ -70,7 +70,7 @@ export async function seedIfEmpty(q: Query) {
 
   await q(`insert into prompts (v, body, rules, note, created, active) values
     (1, $1, $2, 'Placeholder - replaced by Soukita''s prompt', '2026-11-20 19:00', false),
-    (2, $3, $2, 'Soukita''s garment prompt (v42 export)', '2026-11-21 11:00', true) on conflict do nothing`,
+    (2, $3, $2, 'FORM reviewed workflow · evidence, wear and sizing', '2026-11-21 11:00', true) on conflict do nothing`,
     [DEFAULT_PROMPT, DEFAULT_RULES, SOUKITA_PROMPT]);
 
   for (const [key, value] of Object.entries(DEFAULT_VOCAB))

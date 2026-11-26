@@ -1,12 +1,15 @@
+import { randomUUID } from 'node:crypto';
+import { SOUKITA_PROMPT } from './soukita-prompt';
 // Data access. Products are stored as JSON documents (one row each) with photos in their own table,
 // so the shape can evolve while the copy process is still being defined.
 import { db } from './db';
 import { DEFAULT_VOCAB, DONE, normCode, refKey, type Boutique, type Photo, type Product, type Prompt, type Ref, type Vocab } from './domain';
 import { HttpError } from './http';
+import { copyControl, photoFlag } from './copy-workflow';
 
 type Row = { id: string; data: Product };
 // Older rows may predate a field: fill it so the screens can rely on it.
-const withDefaults = (d: Partial<Product>, id: string, photos: Photo[]): Product => ({ ...d, boutiqueRef: d.boutiqueRef ?? '', holds: d.holds ?? [], id, photos } as Product);
+const withDefaults = (d: Partial<Product>, id: string, photos: Photo[]): Product => ({ ...d, boutiqueRef: d.boutiqueRef ?? '', holds: d.holds ?? [], revision: d.revision ?? '', id, photos } as Product);
 
 async function photosFor(ids: string[]): Promise<Record<string, Photo[]>> {
   const q = await db();
@@ -33,8 +36,11 @@ export async function getProduct(id: string): Promise<Product> {
 export async function saveProduct(p: Product): Promise<Product> {
   const q = await db();
   const { photos: _photos, ...data } = p;
-  await q(`insert into products (id, data, updated_at) values ($1, $2::jsonb, now())
-           on conflict (id) do update set data = excluded.data, updated_at = now()`, [p.id, JSON.stringify(data)]);
+  const encoded = JSON.stringify({...data,revision:randomUUID()});
+  const changed = typeof p.revision === 'string'
+    ? await q('update products set data = $2::jsonb, updated_at = now() where id = $1 and coalesce(data->>\'revision\',\'\') = $3 returning id', [p.id, encoded, p.revision])
+    : await q('insert into products (id,data,updated_at) values ($1,$2::jsonb,now()) on conflict (id) do nothing returning id', [p.id,encoded]);
+  if (!changed.length) throw new HttpError(409,'This item changed while you were working. Reload and retry; no draft was overwritten.');
   return getProduct(p.id);
 }
 export async function deleteProduct(id: string) {
@@ -57,12 +63,16 @@ export async function removePhoto(id: string) { const q = await db(); await q('d
 
 /** Soukita v42 rule: an exact match to a saved photo set (order-free, duplicates counted) of an approved entry. */
 export async function findExactPhotoMatch(p: Product): Promise<Product | null> {
-  if (!p.photos.length) return null;
-  const mine = p.photos.map((x) => x.sha256).sort().join();
-  const all = await listProducts();
-  const cands = all.filter((x) => x.id !== p.id && DONE.includes(x.status) && x.copy && x.photos.length === p.photos.length)
-    .sort((a, b) => String(b.updated).localeCompare(String(a.updated)));
-  return cands.find((c) => c.photos.map((x) => x.sha256).sort().join() === mine) || null;
+  if (!p.photos.length || p.holds.length || (copyControl(p).photos !== 'confirmed' && (copyControl(p).photos === 'conflict' || photoFlag(p)))) return null;
+  const mine = p.photos.map(x=>x.sha256).sort().join();
+  const same = (x:string|undefined,y:string|undefined)=>!!x?.trim() && x.trim().toLowerCase()===y?.trim().toLowerCase();
+  const safe = (c: Product) => (!p.brand || same(p.brand,c.brand)) && !c.holds.length && !copyControl(c).blockers.length && (copyControl(c).photos==='confirmed' || !photoFlag(c)) && !c.copy.includes('[CONTEXT MISSING]');
+  const all=(await listProducts()).filter(c=>c.id!==p.id && DONE.includes(c.status) && c.copy && safe(c));
+  const records=all.filter(c=>c.photos.length===p.photos.length && c.photos.map(x=>x.sha256).sort().join()===mine);
+  if (records.length && records.every(c=>c.copy===records[0].copy && c.boutiqueText===records[0].boutiqueText && JSON.stringify(c.sources)===JSON.stringify(records[0].sources))) return records[0];
+  if (copyControl(p).photos !== 'confirmed' || p.boutiqueId === 'B0') return null;
+  const ids = all.filter(c=>c.boutiqueId===p.boutiqueId && (same(c.tempId,p.tempId)||same(c.boutiqueRef,p.boutiqueRef)));
+  return ids.length===1?ids[0]:null;
 }
 
 export async function listBoutiques(): Promise<Boutique[]> {
@@ -110,7 +120,18 @@ export async function deleteRef(code: string) { const q = await db(); await q('d
 
 export async function listPrompts(): Promise<Prompt[]> {
   const q = await db();
-  return q<Prompt>('select v, body as text, rules, note, created, active from prompts order by v');
+  const select = 'select v, body as text, rules, note, created, active from prompts order by v';
+  const current=await q<Prompt>(select);
+  if (!current.some(x=>x.v>2) && current.some(x=>x.v===2 && x.active && /v42 export/i.test(x.note))) {
+    await q(`with retired as (
+      update prompts set active=false where v=2 and active and note like '%v42 export%' and not exists(select 1 from prompts where v>2)
+      returning rules
+    ) insert into prompts (v,body,rules,note,created,active)
+      select 3,$1,rules,'FORM reviewed workflow · evidence, wear and sizing',$2,true from retired
+      on conflict (v) do nothing`,[SOUKITA_PROMPT,new Date().toISOString()]);
+    return q<Prompt>(select);
+  }
+  return current;
 }
 export async function activePrompt(): Promise<Prompt> {
   const all = await listPrompts();

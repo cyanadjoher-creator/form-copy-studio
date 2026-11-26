@@ -2,6 +2,7 @@ import { createHash } from 'node:crypto';
 import { handle, HttpError } from '@/lib/http';
 import { MAX_PHOTOS, PHOTO_ROLES, now } from '@/lib/domain';
 import { addPhoto, getProduct, saveProduct } from '@/lib/repo';
+import { photoChanged } from '@/lib/copy-workflow';
 import { savePhoto } from '@/lib/storage';
 
 type Ctx = { params: Promise<{ id: string }> };
@@ -25,5 +26,6 @@ export const POST = handle(async (req: Request, { params }: Ctx) => {
   const url = await savePhoto(buf, file.type, `products/${id}/${sha256.slice(0, 16)}-${Date.now().toString(36)}.${ext}`);
   await addPhoto(id, { id: 'PH' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6), url, role, sha256, position: p.photos.length });
   if (p.status === 'Imported') { p.status = 'Photographed'; p.history.push({ t: now(), s: 'Photographed', n: '' }); }
+  photoChanged(p);
   return saveProduct(p);
 });

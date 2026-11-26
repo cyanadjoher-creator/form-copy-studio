@@ -144,7 +144,7 @@ function MapModal({ rows, name, onClose, onDone }: { rows: string[][]; name: str
     if (!map.includes('brand') && !map.includes('name')) return toast('Map at least Brand or Item name');
     const items = body.map((r) => {
       const o: Record<string, string> = {}; const extra: string[] = [];
-      head.forEach((h, i) => { const v = String(r[i] ?? '').trim(); if (!v) return; if (map[i]) o[map[i]] = o[map[i]] ? o[map[i]] + ' ' + v : v; else extra.push(`${h}: ${v}`); });
+      head.forEach((h, i) => { const v = String(r[i] ?? '').trim(); if (!v) return; if (/^FORM (title|description) draft$/i.test(h.trim()) && !map[i]) return; if (map[i]) o[map[i]] = o[map[i]] ? o[map[i]] + ' ' + v : v; else extra.push(`${h}: ${v}`); });
       if (extra.length) o.notes = extra.join('\n');
       return o;
     });
@@ -155,7 +155,7 @@ function MapModal({ rows, name, onClose, onDone }: { rows: string[][]; name: str
   return (
     <div className="modal-bg show" onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}><div className={'modal' + (busy ? ' busy' : '')}>
       <div className="eyebrow">{name} · {body.length} rows</div><h2>Map columns to FORM fields</h2>
-      <p className="muted small">Detected from the header names. Unmapped columns are kept in the item notes, nothing is thrown away.</p>
+      <p className="muted small">Detected from the header names. The Boutique column, if mapped, sets the boutique for each row. The dropdown is the fallback for rows without a boutique. Prior FORM drafts are not treated as source evidence.</p>
       <div className="row" style={{ margin: '12px 0 16px' }}>
         <label className="f" style={{ margin: 0 }}>Boutique</label>
         <select style={{ width: 'auto' }} value={bid} onChange={(e) => setBid(e.target.value)}>{data?.boutiques.map((b) => <option key={b.id} value={b.id}>{b.name}</option>)}<option value="new">+ New boutique</option></select>
