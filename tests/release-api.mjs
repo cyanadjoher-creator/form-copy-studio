@@ -51,7 +51,9 @@ assert.equal(regenerate.product.status,'In review');
 assert.notEqual(regenerate.product.copy,good.copy);
 assert.equal(regenerate.product.previousApproval.copy,good.copy);
 assert.deepEqual(regenerate.product.previousApproval.sources,good.sources);
-assert.deepEqual(regenerate.product.sources,[]);
+// Old approved evidence is never carried over; any sources now come from the fresh history research (26 Nov).
+assert.notDeepEqual(regenerate.product.sources,good.sources);
+assert(regenerate.product.sources.every(s=>(regenerate.product.contextResearch?.sources||[]).some(r=>r.url===s.url)));
 assert.match((await patch(good,{patch:{notes:'Stale edit'}},409)).error,/changed/);
 console.log('PASS approved regeneration opens review, preserves old snapshot, clears stale evidence and refuses stale edits.');
 

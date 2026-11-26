@@ -24,7 +24,9 @@ export type ModelResult = { text: string; notes: string[]; searches: number; sea
 export async function callModel(input: string, images: ModelImage[], opts: { webSearch?: boolean } = {}): Promise<ModelResult> {
   const p = aiProvider();
   if (p === 'none') throw new HttpError(503, 'No model is configured. Add ANTHROPIC_API_KEY (or GEMINI_API_KEY with AI_PROVIDER=gemini) in the Vercel project settings.');
-  if (p === 'mock') return { text: mockAnswer(input, images), notes: [], searches: 0 };
+  if (p === 'mock') return input.startsWith('You are researching the design history')
+    ? { text: JSON.stringify({ history_paragraph: 'Mock researched history for the given season.', sources: [{ title: 'Mock review', url: 'https://www.vogue.com/mock-review', supports: 'Collection idea', evidence_role: 'collection' }], findings: ['Mock search found the season review.'], history_from_boutique: '' }), notes: [], searches: 2, searchUrls: ['https://www.vogue.com/mock-review'] }
+    : { text: mockAnswer(input, images), notes: [], searches: 0 };
   if (p === 'claude') {
     if (!process.env.ANTHROPIC_API_KEY) throw new HttpError(503, 'ANTHROPIC_API_KEY is missing.');
     const { default: Anthropic } = await import('@anthropic-ai/sdk');

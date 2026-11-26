@@ -6,6 +6,7 @@ import { HttpError } from '@/lib/http';
 import { applyDraft, checkedFacts, copyControl, photoFlag, reopenApproval } from '@/lib/copy-workflow';
 import { contextFor } from '@/lib/context-sheet';
 import { contextOnHold } from '@/lib/context';
+import { runResearch } from '@/lib/research';
 
 export async function runModel(p: Product, opts: { fieldsOnly: boolean; dryRun?: boolean; prompt?: Prompt }) {
   const priorFlags = [...p.flags];
@@ -23,7 +24,9 @@ export async function runModel(p: Product, opts: { fieldsOnly: boolean; dryRun?:
     const { data, mime } = await readPhoto(ph.url);
     return { data: data.toString('base64'), mime, label: 'Photo '+(i+1)+' — '+ph.role };
   }));
-  const webSearch = !opts.fieldsOnly && !ctx.record?.paragraph && aiProvider()==='claude' && process.env.WEB_SEARCH !== 'off';
+  // History: a tracker row wins; otherwise use the piece's 'Research history' result, running it first if it was never run.
+  if (!opts.fieldsOnly && !ctx.record?.paragraph && !p.contextResearch && process.env.WEB_SEARCH !== 'off') p.contextResearch = await runResearch(p, prompt);
+  const webSearch = false;
   const { text, notes, searches, searchUrls=[] } = await callModel(buildInput(p,prompt,vocab,{...opts,webSearch,context:ctx}),images,{webSearch});
   let j: Record<string,unknown>;
   try { j=parseModelJson(text); } catch { throw new HttpError(502,'The model answer could not be read. No saved copy was replaced.'); }
@@ -45,7 +48,7 @@ export async function runModel(p: Product, opts: { fieldsOnly: boolean; dryRun?:
       reopenApproval(snapshot,'New evidence and copy require review; prior approval retained');
       p.status=snapshot.status; p.previousApproval=snapshot.previousApproval; p.history=snapshot.history;
     }
-    applyDraft(p,j,ctx,searchUrls,priorFlags);
+    applyDraft(p,j,ctx,searchUrls,priorFlags,p.contextResearch);
     p.promptV=prompt.v;
   } else {
     if (filled.length || mixed || JSON.stringify(p.conflicts)!==JSON.stringify(before.conflicts)) {
@@ -57,7 +60,7 @@ export async function runModel(p: Product, opts: { fieldsOnly: boolean; dryRun?:
   }
   if (filled.length) p.flags.unshift('Filled from photos · check '+filled.join(', '));
   p.flags.push(...notes);
-  if (!opts.fieldsOnly) p.flags.push(webSearch ? `Web research: ${searches} search${searches===1?'':'es'}, ${new Set(searchUrls).size} pages found.` : ctx.record?.paragraph ? 'History taken from the FORM tracker row (no web research needed).' : 'Web research was not run for this draft.');
+  if (!opts.fieldsOnly) { const r=p.contextResearch; p.flags.push(ctx.record?.paragraph ? 'History taken from the FORM tracker row.' : r ? `History research (${r.at}): ${r.status==='found'?'history found':r.status==='boutique'?'boutique claim only':r.status==='error'?'failed':'nothing documented'} · ${r.searches} searches · ${r.sources.length} sources.` : 'History research was not run.'); }
   p.history.push({t:now(),s:p.status,n:(opts.fieldsOnly?'Fields read':'Generated with prompt v'+prompt.v)+' · '+aiProvider()+' '+aiModel()+' · '+p.photos.length+' photos · '+searches+' web searches'});
   return {product:opts.dryRun?p:await saveProduct(p),filled,blocked:!!copyControl(p).blockers.length};
 }

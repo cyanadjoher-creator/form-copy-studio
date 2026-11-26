@@ -1,4 +1,4 @@
-import { DONE, CONTEXT_MISSING, now, readiness, type CopyControl, type Product, type Source } from './domain.ts';
+import { DONE, CONTEXT_MISSING, now, readiness, type ContextResearch, type CopyControl, type Product, type Source } from './domain.ts';
 import { sizeInches } from './sizing.ts';
 import { canonicalListing, contextOnHold, rowNote, safeUrl, type ContextResult } from './context.ts';
 
@@ -44,7 +44,7 @@ const cleanHeld = (s: string, heldFibre: boolean, heldLining: boolean) => {
   return heldFibre ? s.replace(/\b\d+(?:[.,]\d+)?%\s*/g,'').replace(fibres,'').replace(/\s+/g,' ').replace(/\s+([.,])/g,'$1').trim() : s;
 };
 
-export function applyDraft(p: Product, j: Record<string,unknown>, ctx: ContextResult, searchHits: string[], previousFlags: string[]) {
+export function applyDraft(p: Product, j: Record<string,unknown>, ctx: ContextResult, searchHits: string[], previousFlags: string[], research?: ContextResearch) {
   const previous = copyControl(p);
   const samePhotos = previous.photos === 'confirmed';
   const badSet = !samePhotos && photoFlag({...p,flags:previousFlags},j);
@@ -78,13 +78,16 @@ export function applyDraft(p: Product, j: Record<string,unknown>, ctx: ContextRe
   // A researched paragraph becomes a CANDIDATE when at least one source was really found by the search.
   // It still has to be accepted (or omitted) by a person before approval.
   const web = reported.some(s=>searchHits.map(canonicalListing).includes(canonicalListing(s.url)));
-  const fromBoutique = !exact && !web ? scrub(j.history_from_boutique,2600) : '';
+  // The 'Research history' result is used when there is no tracker row.
+  const researched = !exact && research && ['found','boutique'].includes(research.status) && research.paragraph ? research : null;
+  const fromBoutique = !exact && !web && !researched ? scrub(j.history_from_boutique,2600) : '';
   // For an identified record use its proposed paragraph verbatim, never append its citations to a new model claim.
-  const paragraph = exact ? scrub(rec.paragraph,2600) : web ? scrub(j.history_paragraph,2600) : fromBoutique;
-  const evidence: Source[] = paragraph ? exact ? [...rec.sources,...rec.itemSources] : web ? reported.map(({kind:_kind,...rest})=>rest)
+  const paragraph = exact ? scrub(rec.paragraph,2600) : researched ? scrub(researched.paragraph,2600) : web ? scrub(j.history_paragraph,2600) : fromBoutique;
+  const evidence: Source[] = paragraph ? exact ? [...rec.sources,...rec.itemSources] : researched ? researched.sources : web ? reported.map(({kind:_kind,...rest})=>rest)
     : [{title:'Boutique description (unverified)', url:listing, supports:'Seller text only: verify before accepting'}] : [];
   p.sources=[...new Map(evidence.map(s=>[s.url||s.title,s])).values()];
   const history = paragraph ? 'candidate' : 'missing';
+  if (researched?.status==='boutique') blockers.push('History taken from the boutique description only: check it against a source, then accept or omit it.');
   if (fromBoutique) blockers.push('History taken from the boutique description only: check it against a source, then accept or omit it.');
 
   const titleCandidates = [rec?.name,clean('name')?p.name:'',j.product_name,p.name];

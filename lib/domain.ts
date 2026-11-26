@@ -16,12 +16,15 @@ export const MAX_PHOTOS = 9;
 export type Source = { title: string; url?: string; supports?: string };
 export type DraftHistory = 'unreviewed' | 'candidate' | 'accepted' | 'missing' | 'omitted' | 'archive';
 export type CopyControl = { history: DraftHistory; paragraph: string; header: string; photos: 'unreviewed' | 'confirmed' | 'conflict'; blockers: string[]; contextOrigin: string; contextKey?: string };
+/** Result of the 'Research history' step, shown on the piece for review. */
+export type ContextResearch = { at: string; status: 'found' | 'boutique' | 'nothing' | 'error'; paragraph: string; sources: Source[]; findings: string[]; searches: number; pages: number; note: string };
 export type Photo = { id: string; url: string; role: string; sha256: string; position: number };
 export type HistoryItem = { t: string; s: string; n: string };
 
 export type Product = {
   id: string; sku: string; boutiqueRef: string; productCode: string; boutiqueId: string;
   tempId?: string; listingUrl?: string; verifiedWear?: string; copyControl?: CopyControl; revision?: string;
+  contextResearch?: ContextResearch;
   previousApproval?: { status: Stage; copy: string; boutiqueText: string; sources: Source[]; care: string; at: string };
   brand: string; name: string; category: string; colour: string; material: string;
   madeIn: string; measurements: string; care: string;

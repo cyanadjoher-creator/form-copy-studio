@@ -113,11 +113,12 @@ export function Ingestion({ id, brand }: { id?: string; brand?: string }) {
   }
   async function setRole(phId: string, role: string) { await action('role', async () => { await persist(); take(await api<Product>('/api/photos/' + phId, { method: 'PATCH', body: { role } })); }); }
   async function removePhoto(phId: string) { await action('role', async () => { await persist(); take(await api<Product>('/api/photos/' + phId, { method: 'DELETE' })); }); }
-  async function runAi(kind: 'fill' | 'generate') {
+  async function runAi(kind: 'fill' | 'generate' | 'research') {
     await action(kind, async () => {
       const cur = await persist();
       const r = await api<{ product: Product; filled?: string[]; matched?: string; blocked?: boolean }>('/api/ai/' + kind, { body: { id: cur.id } });
       take(r.product);
+      if (kind === 'research') { const c = r.product.contextResearch; toast(c?.status === 'found' ? 'History found · review it below' : c?.status === 'boutique' ? 'Only the boutique\'s claim was found' : c?.status === 'error' ? 'Research failed · see the note' : 'Nothing documented found'); return; }
       toast(r.matched ? 'Approved copy loaded from the archive' : kind === 'fill' ? (r.filled?.length ? 'Filled: ' + r.filled.map((k) => FIELD_LABEL[k] || k).join(', ') : 'Nothing new to fill: see the notes') : r.blocked ? 'Draft needs a check · see To verify' : 'Draft ready');
     });
   }
@@ -262,6 +263,19 @@ export function Ingestion({ id, brand }: { id?: string; brand?: string }) {
           <p className="small muted">Generate copy matches Copy Context against the boutique and item identifiers. A similar title is not proof of a match.</p>
           {p.copyControl?.contextOrigin && <p className="small">History from · {({ snapshot: 'FORM tracker (copy built into the site)', sheets: 'FORM tracker (live from Google)', unavailable: 'tracker not readable' } as Record<string, string>)[p.copyControl.contextOrigin] || p.copyControl.contextOrigin}{p.copyControl.contextKey ? ' · row ' + p.copyControl.contextKey.split('|').pop()!.toUpperCase() + ' (' + titleCaseShop(p.copyControl.contextKey.split('|')[0]) + ')' : ''}</p>}
           {!!p.sources.length && <><label className="f">Research sources</label><ul className="src">{p.sources.map((s, i) => <li key={(s.url || s.title) + i}><b>{s.url ? <a href={s.url} target="_blank" rel="noreferrer">{s.title}</a> : s.title}</b><br /><span className="muted">{s.supports}</span></li>)}</ul></>}
+          {(() => { const c = p.contextResearch; const tracker = p.copyControl?.contextKey && p.copyControl?.history !== 'missing';
+            return <div className="flag" style={{ marginTop: 14, borderColor: c?.status === 'found' ? undefined : undefined }}>
+              <div className="row between"><b>History &amp; context</b><button className="btn sm" onClick={() => runAi('research')}>{busy === 'research' ? 'Researching… (up to 2 min)' : c ? 'Research again' : 'Research history'}</button></div>
+              {tracker && <p className="small" style={{ margin: '6px 0 0' }}>This piece matches a FORM tracker row, so its reviewed history is used first.</p>}
+              {!c ? <p className="small muted" style={{ margin: '6px 0 0' }}>Not researched yet. Research history searches the web for the house and the season given, then shows what it found here for you to review. Generate copy also runs it if needed.</p> : <>
+                <p className="small" style={{ margin: '6px 0' }}><b>{c.status === 'found' ? 'History found' : c.status === 'boutique' ? 'Only the boutique description makes a claim (unverified)' : c.status === 'error' ? 'Research failed' : 'Nothing documented found'}</b> · {c.searches} web searches · {c.pages} pages · {c.at}</p>
+                {c.paragraph && <p style={{ margin: '6px 0', fontStyle: 'italic' }}>{c.paragraph}</p>}
+                {!!c.sources.length && <ul className="src" style={{ margin: '6px 0' }}>{c.sources.map((s, i) => <li key={(s.url || s.title) + i}>{s.url ? <a href={s.url} target="_blank" rel="noreferrer"><b>{s.title}</b> ↗</a> : <b>{s.title}</b>}{s.supports && <><br /><span className="muted small">{s.supports}</span></>}</li>)}</ul>}
+                {!!c.findings.length && <><span className="small muted">What the searches turned up:</span><ul className="small" style={{ margin: '4px 0 0', paddingLeft: 18 }}>{c.findings.map((f, i) => <li key={i}>{f}</li>)}</ul></>}
+                {c.note && <p className="small muted" style={{ margin: '6px 0 0' }}>{c.note}</p>}
+                <p className="small muted" style={{ margin: '6px 0 0' }}>Regenerate copy to put this into the draft; you then Accept or Omit it before approval. To steer it, add leads (look number, collection name, a link) in Research leads and research again.</p>
+              </>}
+            </div>; })()}
           <div className="row between" style={{ marginTop: 14 }}><label className="f" style={{ margin: 0 }}>Original boutique description</label><button className="btn sm ghost" onClick={readText}>Read into empty fields</button></div>
           <textarea rows={3} style={{ marginTop: 6 }} value={p.boutiqueDesc} onChange={(e) => edit('boutiqueDesc', e.target.value)} />
           <div className="grid g2" style={{ gap: 8, marginTop: 16 }}>
