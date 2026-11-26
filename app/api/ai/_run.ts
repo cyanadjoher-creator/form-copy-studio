@@ -57,6 +57,7 @@ export async function runModel(p: Product, opts: { fieldsOnly: boolean; dryRun?:
   }
   if (filled.length) p.flags.unshift('Filled from photos · check '+filled.join(', '));
   p.flags.push(...notes);
+  if (!opts.fieldsOnly) p.flags.push(webSearch ? `Web research: ${searches} search${searches===1?'':'es'}, ${new Set(searchUrls).size} pages found.` : ctx.record?.paragraph ? 'History taken from the FORM tracker row (no web research needed).' : 'Web research was not run for this draft.');
   p.history.push({t:now(),s:p.status,n:(opts.fieldsOnly?'Fields read':'Generated with prompt v'+prompt.v)+' · '+aiProvider()+' '+aiModel()+' · '+p.photos.length+' photos · '+searches+' web searches'});
   return {product:opts.dryRun?p:await saveProduct(p),filled,blocked:!!copyControl(p).blockers.length};
 }

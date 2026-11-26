@@ -88,7 +88,7 @@ test('boutique ID is kept apart from the garment code', () => {
 test('the builder requires structured copy and only requests search when it can run', () => {
   const p=blankProduct();
   const prompt={text:'P',rules:'R'};
-  assert.match(buildInput(p,prompt,DEFAULT_VOCAB,{webSearch:true}),/research it now with web search/);
+  assert.match(buildInput(p,prompt,DEFAULT_VOCAB,{webSearch:true}),/research its history now with web search/);
   assert.match(buildInput(p,prompt,DEFAULT_VOCAB,{webSearch:false}),/Do not invent or rewrite history/);
   assert.match(buildInput(p,prompt,DEFAULT_VOCAB),/Draft ONLY separate fields/);
 });

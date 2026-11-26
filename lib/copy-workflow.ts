@@ -1,6 +1,6 @@
 import { DONE, CONTEXT_MISSING, now, readiness, type CopyControl, type Product, type Source } from './domain.ts';
 import { sizeInches } from './sizing.ts';
-import { canonicalListing, contextOnHold, safeUrl, type ContextResult } from './context.ts';
+import { canonicalListing, contextOnHold, rowNote, safeUrl, type ContextResult } from './context.ts';
 
 const oneLine = (v: unknown, limit = 500) => typeof v === 'string' ? v.trim().replace(/\s+/g,' ').slice(0,limit) : '';
 const scrub = (x: unknown, limit = 500) => oneLine(x,limit).replace(/\[CONTEXT MISSING[^\]]*\]/gi,'').trim();
@@ -66,19 +66,26 @@ export function applyDraft(p: Product, j: Record<string,unknown>, ctx: ContextRe
   if (p.status !== 'In review') p.status='Drafted';
   const {clean,heldFibre,heldLining,heldCare} = checkedFacts(p);
   const exact = rec && !!rec.paragraph && rec.sources.length>0 && rec.itemSources.length>0 && !/^no verified history$/i.test(rec.historyStatus);
-  const webHits=new Set(searchHits.map(canonicalListing).filter(Boolean));
+  // The boutique's own listing counts as item evidence, even when the search did not return it.
+  const listing = safeUrl(rowNote(p,'Boutique Shop Link') || ((p.notes||'')+' '+(p.boutiqueDesc||'')).match(/https?:\/\/\S+/)?.[0] || '');
+  const webHits=new Set([...searchHits,listing].map(canonicalListing).filter(Boolean));
   const reported = Array.isArray(j.sources) ? j.sources.flatMap(v=>{
     if (!v || typeof v!=='object') return [];
     const url=safeUrl(v.url), supports=scrub(v.supports);
     if (!url || !supports || !webHits.has(canonicalListing(url))) return [];
     return [{url,title:scrub(v.title)||url,supports,kind:v.evidence_role}];
   }) : [];
-  const web = reported.some(s=>s.kind==='collection') && reported.some(s=>s.kind==='item') && new Set(reported.map(s=>s.url)).size>=2;
+  // A researched paragraph becomes a CANDIDATE when at least one source was really found by the search.
+  // It still has to be accepted (or omitted) by a person before approval.
+  const web = reported.some(s=>searchHits.map(canonicalListing).includes(canonicalListing(s.url)));
+  const fromBoutique = !exact && !web ? scrub(j.history_from_boutique,2600) : '';
   // For an identified record use its proposed paragraph verbatim, never append its citations to a new model claim.
-  const paragraph = exact ? scrub(rec.paragraph,2600) : web ? scrub(j.history_paragraph,2600) : '';
-  const evidence: Source[] = paragraph ? exact ? [...rec.sources,...rec.itemSources] : reported.map(({kind:_kind,...rest})=>rest) : [];
+  const paragraph = exact ? scrub(rec.paragraph,2600) : web ? scrub(j.history_paragraph,2600) : fromBoutique;
+  const evidence: Source[] = paragraph ? exact ? [...rec.sources,...rec.itemSources] : web ? reported.map(({kind:_kind,...rest})=>rest)
+    : [{title:'Boutique description (unverified)', url:listing, supports:'Seller text only: verify before accepting'}] : [];
   p.sources=[...new Map(evidence.map(s=>[s.url||s.title,s])).values()];
   const history = paragraph ? 'candidate' : 'missing';
+  if (fromBoutique) blockers.push('History taken from the boutique description only: check it against a source, then accept or omit it.');
 
   const titleCandidates = [rec?.name,clean('name')?p.name:'',j.product_name,p.name];
   const name = titleCandidates.map(x=>cleanHeld(scrub(x),heldFibre,heldLining)).find(Boolean) || '';
@@ -107,11 +114,12 @@ export function applyDraft(p: Product, j: Record<string,unknown>, ctx: ContextRe
   if (!p.name || !brand || !name) blockers.push('Confirm the brand and product name before approval.');
   const bullets=[...new Set(features),...(measure.text&&!measure.conflict?[measure.text]:[])].map(s=>'· '+s).join('\n');
   const country = clean('madeIn') && p.madeIn && !p.holds.some(x=>/^(made in|origin|manufacture)\s*:/i.test(x)) ? 'Made in '+single(scrub(p.madeIn).replace(/^made in\s+/i,''))+'.' : '';
-  p.copy=[header,paragraph,product?product+'.':'',bullets,country].filter(Boolean).join('\n\n');
+  // With no history, the marker sits where the paragraph goes, so the gap is visible in the copy itself.
+  p.copy=[header,paragraph||CONTEXT_MISSING,product?product+'.':'',bullets,country].filter(Boolean).join('\n\n');
   p.boutiqueText=heldCare||heldFibre||heldLining ? '' : scrub(j.boutique_text,2000);
   p.historyRow=rec?.row || null;
   p.copyControl={history,paragraph,header,photos:samePhotos?'confirmed':'unreviewed',blockers,contextOrigin:ctx.origin,contextKey:rec?.key};
-  p.flags=[...new Set([...blockers,...stringList(j.flags),paragraph?'History draft needs editorial source review.':'No sufficiently supported history was added.',rec?.note||'',rec?'History record matched · FORM tracker row '+(rec.tempId||rec.row)+' · '+rec.scope:''].filter(Boolean))];
+  p.flags=[...new Set([...blockers,...stringList(j.flags),paragraph?'History draft needs editorial source review.':'Context missing: no source was found for the history. Add research (or a tracker row) and regenerate, or click Omit history.',rec?.note||'',rec?'History record matched · FORM tracker row '+(rec.tempId||rec.row)+' · '+rec.scope:''].filter(Boolean))];
   return p;
 }
 

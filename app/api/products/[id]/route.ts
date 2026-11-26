@@ -1,5 +1,5 @@
 import { handle, HttpError } from '@/lib/http';
-import { DONE, STAGES, now, type Product } from '@/lib/domain';
+import { DONE, STAGES, now, type Product, CONTEXT_MISSING } from '@/lib/domain';
 import { deleteProduct, getProduct, saveProduct } from '@/lib/repo';
 import { deletePhotoFile } from '@/lib/storage';
 import { approveIssues, copyControl, reopenApproval } from '@/lib/copy-workflow';
@@ -40,8 +40,8 @@ export const PATCH = handle(async (req: Request, { params }: Ctx) => {
       if (!c.paragraph || !next.sources.length || !next.copy.includes(c.paragraph)) throw new HttpError(409,'There is no matching sourced paragraph to accept.');
       next.copyControl={...c,history:'accepted'};
     } else if (body.review==='omit-history') {
-      if (c.paragraph) next.copy=next.copy.split(/\n\s*\n/).filter(x=>x.trim()!==c.paragraph.trim()).join('\n\n');
-      else if (c.history !== 'missing') throw new HttpError(409,'Regenerate or document an explicit history decision before omitting it.');
+      if (!c.paragraph && c.history !== 'missing') throw new HttpError(409,'Regenerate or document an explicit history decision before omitting it.');
+      next.copy=next.copy.split(/\n\s*\n/).filter(x=>x.trim()!==CONTEXT_MISSING && (!c.paragraph || x.trim()!==c.paragraph.trim())).join('\n\n');
       next.sources=[];
       next.copyControl={...c,history:'omitted',paragraph:''};
     } else throw new HttpError(400,'Unknown review action.');

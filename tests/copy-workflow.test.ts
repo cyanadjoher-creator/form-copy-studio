@@ -101,7 +101,9 @@ test('regeneration reopens approval, snapshots old copy, removes old source link
   assert.equal(p.previousApproval?.sources[0].url,historical);
   assert.deepEqual(p.sources,[]);
   assert.equal(copyControl(p).history,'missing');
-  assert.doesNotMatch(p.copy,/CONTEXT MISSING|Invented|Old approved/);
+  assert.doesNotMatch(p.copy,/Invented|Old approved/);
+  // With no supported history, the gap is marked in the copy itself (26 Nov).
+  assert.ok(p.copy.includes('[CONTEXT MISSING]') || copyControl(p).history==='candidate');
   p.copy=p.copy.replace('W13 x B17 x L20.5 in','W33 x B43 x L52 cm');
   assert(approveIssues(p).some(x=>x.includes('quarter-inch')));
   p.holds=['Lining: unreadable'];
@@ -141,15 +143,19 @@ test('label holds and unknown season stay out of the website output',()=>{
   assert(approveIssues(p).includes('unresolved holds'));
 });
 
-test('web-only proposals require matching tool results for distinct item and collection evidence',()=>{
+test('web proposals become a review candidate only with a page the search really found; invented links are dropped',()=>{
   const p=gucci();
   const result={...draft,history_paragraph:'Documented design context.',sources:[
     {title:'Collection',url:historical,supports:'The design decision',evidence_role:'collection'},
     {title:'Exact',url:listing,supports:'Sale garment and detail',evidence_role:'item'},
     {title:'Invented',url:'https://bogus.example',supports:'not real',evidence_role:'item'},
   ]};
-  applyDraft(p,result,missing,[historical],[]);
+  applyDraft(p,result,missing,[],[]);
   assert.equal(copyControl(p).history,'missing');
+  assert.ok(p.copy.includes('[CONTEXT MISSING]'));
+  applyDraft(p,result,missing,[historical],[]);
+  assert.equal(copyControl(p).history,'candidate');
+  assert.ok(!p.sources.some(s=>s.url==='https://bogus.example'));
   applyDraft(p,result,missing,[historical,listing],[]);
   assert.equal(copyControl(p).history,'candidate');
   assert.equal(p.sources.length,2);
