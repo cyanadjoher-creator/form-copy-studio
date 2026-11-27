@@ -75,6 +75,7 @@ export const SECTION_ORDER = ['History', 'Short description', 'Long description'
 /* ---------- the glossary, by highlighted category ---------- */
 const houses = FROZEN_VOCAB.FASHION_HOUSE;
 export const GLOSSARY: GlossGroup[] = [
+  { key: 'shop', label: 'Shop categories', tone: 'guide', help: 'The measurement guide sections, used to list and filter the export. Orange: added, not in the guide yet.', terms: [] },
   { key: 'types', label: 'Item types', tone: 'ink', help: 'What the piece is. Shop categories follow the Copy Guide item types.', terms: merge(
     T(['guide'], 'Bag|Hat|Sunglasses|Belt|Shoes|T-shirt|Tank top|Shirt|Shorts|Jeans|Trousers|Skirt|Dress|Book|CD|Film'),
     T(['fashionpedia'], 'Blazer|Bolero jacket|Bomber jacket=flight jacket|Trench coat|Chesterfield coat|Peacoat=pea coat|Duffle coat=duffel coat|Parka|Cape|Poncho|Gilet|Waistcoat|Cardigan|Jumper=sweater,pullover|Polo shirt|Henley|Hoodie=hooded sweatshirt|Sweatshirt|Blouse|Camisole|Bodysuit|Corset|Bustier|Kaftan=caftan|Slip dress|Shirt dress|Sheath dress|Wrap dress|Babydoll dress=babydoll|Jumpsuit|Dungarees=overalls|Culottes|Palazzo trousers=palazzo pants|Cargo trousers=cargo pants|Chinos|Joggers|Leggings|Pencil skirt|A-line skirt|Wrap skirt|Kilt|Sarong|Bermuda shorts|Suit|Three-piece suit|Tuxedo jacket=dinner jacket'),
@@ -216,7 +217,7 @@ export function vocabularyBrief(category: string) {
   const g = guideFor(category);
   const groups = ['parts', 'knit', 'closures', 'pockets', 'construction', 'surface', 'ornament', 'pattern', 'silhouette'].concat(g.accessory ? [] : ['necklines', 'collars', 'sleeves']);
   const pick = GLOSSARY.filter((x) => groups.includes(x.key)).map((x) => x.label + ': ' + x.terms.map((t) => t.t).join(', '));
-  const avoid = GLOSSARY.flatMap((x) => x.terms.filter((t) => t.aka?.length).map((t) => `${t.aka!.join(' / ')} → ${t.t}`)).slice(0, 120);
+  const avoid = GLOSSARY.filter((x) => x.key !== 'shop').flatMap((x) => x.terms.filter((t) => t.aka?.length).map((t) => `${t.aka!.join(' / ')} → ${t.t}`)).slice(0, 120);
   return [
     'FORM VOCABULARY AND COPY GUIDE (preferred over the boutique wording)',
     `Copy Guide sections, in order: ${SECTION_ORDER.join(' › ')}.`,
@@ -227,4 +228,59 @@ export function vocabularyBrief(category: string) {
     ...pick,
     'When the boutique uses another word, write the FORM term instead: ' + avoid.join('; '),
   ].join('\n');
+}
+
+/* ---------- shop categories (the measurement guide sections) ---------- */
+// From the FORM measurement guide (27 Nov). "added" marks sections the guide does not have yet, added so every piece has a home.
+export type ShopCategory = { name: string; measure: string; added?: boolean; note?: string };
+export const SHOP_CATEGORIES: ShopCategory[] = [
+  { name: 'Tops + Outerwear', measure: 'C Chest x S Sleeve x L Length' },
+  { name: 'Knitwear', measure: 'C Chest x S Sleeve x L Length (as Tops + Outerwear)', added: true },
+  { name: 'Denim', measure: 'By item type (Bottoms, Skirts, Tops + Outerwear)', added: true },
+  { name: 'Bottoms', measure: 'W Waist x R Front rise x I Inseam' },
+  { name: 'Skirts', measure: 'W Waist x B Hem width x L Length' },
+  { name: 'Dresses', measure: 'C Chest x W Waist x L Length' },
+  { name: 'Jumpsuits', measure: 'C Chest x I Inseam x L Length' },
+  { name: 'Sets', measure: 'Each piece by its own type', added: true },
+  { name: 'Lingerie + Swimwear', measure: 'C Chest x W Waist x L Length', added: true },
+  { name: 'Footwear', measure: 'H Heel height' },
+  { name: 'Bags', measure: 'H Height x W Width x D Depth' },
+  { name: 'Small leather goods', measure: 'H Height x W Width x D Depth', added: true },
+  { name: 'Belts', measure: 'L Length (shortest-longest) x W Width' },
+  { name: 'Scarves', measure: 'W Width x L Length' },
+  { name: 'Gloves', measure: 'L Length x W Width', added: true },
+  { name: 'Hats', measure: 'C Inside circumference' },
+  { name: 'Eyewear', measure: 'L Lens width x B Bridge x T Temple' },
+  { name: 'Watches', measure: 'W Case width x L Length' },
+  { name: 'Bracelets', measure: 'L Length' },
+  { name: 'Cuffs', measure: 'D Diameter' },
+  { name: 'Rings', measure: 'D Diameter' },
+  { name: 'Earrings', measure: 'L Length x W Width', note: 'The guide image shows the Jumpsuits caption under Earrings; L Length x W Width is the copy prompt rule.' },
+  { name: 'Necklaces', measure: 'L Chain length x W Pendant width x H Pendant height' },
+  { name: 'Brooches + other jewellery', measure: 'H Height x W Width', added: true },
+  { name: 'Books, ephemera + objects', measure: 'H Height x W Width x D Depth' },
+];
+GLOSSARY.find((g) => g.key === 'shop')!.terms.push(...SHOP_CATEGORIES.map((c): GlossTerm => ({ t: c.name, src: [c.added ? 'studio' : 'guide'], aka: [c.measure] })));
+const SHOP_BY_CATEGORY: Record<string, string> = {
+  Blazers: 'Tops + Outerwear', Blouses: 'Tops + Outerwear', Coats: 'Tops + Outerwear', 'Hoodies & Sweatshirts': 'Tops + Outerwear', Jackets: 'Tops + Outerwear', Shirts: 'Tops + Outerwear',
+  'T-shirts': 'Tops + Outerwear', 'Tank tops': 'Tops + Outerwear', Tops: 'Tops + Outerwear', Waistcoats: 'Tops + Outerwear',
+  Cardigans: 'Knitwear', Jumpers: 'Knitwear', Knitwear: 'Knitwear', Jeans: 'Denim', Trousers: 'Bottoms', Shorts: 'Bottoms', Skirts: 'Skirts', Dresses: 'Dresses', Jumpsuits: 'Jumpsuits',
+  Sets: 'Sets', Suits: 'Sets', Lingerie: 'Lingerie + Swimwear', Swimwear: 'Lingerie + Swimwear', Shoes: 'Footwear', Boots: 'Footwear', Bags: 'Bags', 'Small leather goods': 'Small leather goods',
+  Belts: 'Belts', Scarves: 'Scarves', Gloves: 'Gloves', Hats: 'Hats', Sunglasses: 'Eyewear', Eyewear: 'Eyewear', Watches: 'Watches',
+  Bracelets: 'Bracelets', Cuffs: 'Cuffs', Rings: 'Rings', Earrings: 'Earrings', Necklaces: 'Necklaces', Books: 'Books, ephemera + objects', 'CDs & Films': 'Books, ephemera + objects',
+};
+const GARMENT_SHOP = ['Tops + Outerwear', 'Knitwear', 'Bottoms', 'Skirts', 'Dresses', 'Jumpsuits', 'Sets'];
+/** The shop category a piece is listed under. Empty when it cannot be placed: the export flags it. */
+export function shopCategoryFor(p: { category: string; name: string; material?: string }): string {
+  const name = String(p.name || '').toLowerCase();
+  let shop = SHOP_BY_CATEGORY[p.category] || '';
+  if (p.category === 'Jewellery' || (!shop && /\b(ring|bracelet|bangle|cuff|earrings?|necklace|pendant|choker|brooch|pin)\b/.test(name))) {
+    shop = /\bring\b/.test(name) ? 'Rings' : /\b(bracelet|bangle)\b/.test(name) ? 'Bracelets' : /\bcuff\b/.test(name) ? 'Cuffs' : /\bearrings?\b/.test(name) ? 'Earrings'
+      : /\b(necklace|pendant|choker)\b/.test(name) ? 'Necklaces' : 'Brooches + other jewellery';
+  }
+  if (/\b(jumpsuit|overalls|dungarees|boilersuit|catsuit)\b/.test(name) && (!shop || GARMENT_SHOP.includes(shop))) shop = 'Jumpsuits';
+  else if (/\b(set|twinset|two-piece|suit)\b/.test(name) && (!shop || GARMENT_SHOP.includes(shop))) shop = 'Sets';
+  const denim = /\bdenim\b(?![- ]print)/.test(name) || /\bdenim\b/i.test(p.material || '');
+  if (denim && (!shop || GARMENT_SHOP.includes(shop))) shop = 'Denim';
+  return shop;
 }

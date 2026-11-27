@@ -57,6 +57,7 @@ export const POST = handle(async (req: Request) => {
       sizeSystem: Object.keys(vocab.sizes).find((s) => s.toLowerCase() === String(o.sizeSystem || '').trim().toLowerCase()) || '',
       notes: [o.listingTitle && 'Listing title: ' + o.listingTitle, o.photoFolder && 'Photo folder: ' + o.photoFolder, o.notes].filter(Boolean).join('\n'),
       research: [o.researchCollection && 'Collection: ' + o.researchCollection, o.researchLook && 'Look: ' + o.researchLook, o.research, o.researchLinks && 'Links: ' + o.researchLinks].filter(Boolean).join('\n'),
+      teamFacts: o.teamFacts || '',
       seasonRaw: o.seasonRaw || '', season: ns.season, seasonType: ns.type, seasonYear: ns.yv, year: ns.year,
       history: [{ t: now(), s: 'Imported', n: 'from ' + (rowName || bname) }],
     });

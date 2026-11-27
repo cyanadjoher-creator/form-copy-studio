@@ -119,7 +119,7 @@ export const DEFAULT_VOCAB: Vocab = {
   brands: ['ALEXANDER MCQUEEN', 'ANN DEMEULEMEESTER', 'BALENCIAGA', 'CÉLINE', 'CHRISTIAN DIOR', 'COMME DES GARÇONS', 'DIRK BIKKEMBERGS', 'DOLCE & GABBANA', 'GUCCI', 'JEAN PAUL GAULTIER', 'JOHN GALLIANO', 'JUN TAKAHASHI', 'MAISON MARTIN MARGIELA', 'RAF SIMONS', 'RICK OWENS', 'ROBERTO CAVALLI', 'YVES SAINT LAURENT'],
   archiveBrands: ['ALEXANDER MCQUEEN', 'COMME DES GARÇONS', 'JOHN GALLIANO', 'JUN TAKAHASHI', 'MAISON MARTIN MARGIELA', 'RAF SIMONS', 'RICK OWENS'],
   seasonTypes: FROZEN_FIELD_LISTS.seasonTypes,
-  categories: ['Bags', 'Belts', 'Blazers', 'Blouses', 'Boots', 'Cardigans', 'Coats', 'Dresses', 'Gloves', 'Hats', 'Hoodies & Sweatshirts', 'Jackets', 'Jeans', 'Jewellery', 'Jumpers', 'Knitwear', 'Lingerie', 'Scarves', 'Sets', 'Shirts', 'Shoes', 'Shorts', 'Skirts', 'Small leather goods', 'Suits', 'Swimwear', 'Sunglasses', 'T-shirts', 'Tank tops', 'Tops', 'Trousers', 'Waistcoats', 'Books', 'CDs & Films'],
+  categories: ['Bags', 'Belts', 'Blazers', 'Blouses', 'Boots', 'Cardigans', 'Coats', 'Dresses', 'Gloves', 'Hats', 'Hoodies & Sweatshirts', 'Jackets', 'Jeans', 'Jewellery', 'Jumpers', 'Knitwear', 'Lingerie', 'Scarves', 'Sets', 'Shirts', 'Shoes', 'Shorts', 'Skirts', 'Small leather goods', 'Suits', 'Swimwear', 'Sunglasses', 'T-shirts', 'Tank tops', 'Tops', 'Trousers', 'Waistcoats', 'Jumpsuits', 'Watches', 'Bracelets', 'Cuffs', 'Rings', 'Earrings', 'Necklaces', 'Books', 'CDs & Films'],
   colours: FROZEN_FIELD_LISTS.colours,
   materials: GLOSSARY.find((g) => g.key === 'materials')!.terms.map((t) => t.t).sort((a, b) => a.localeCompare(b)),
   conditions: FROZEN_FIELD_LISTS.conditions,
@@ -164,6 +164,7 @@ export const FIELDS: [keyof Product | ImportExtra, string, string[]][] = [
   ['care', 'Care instructions', ['care', 'care instructions', 'washing', 'wash', 'entretien']],
   ['notes', 'Item notes (internal)', ['item notes', 'internal notes']],
   ['research', 'Research leads (context)', ['research leads', 'context leads']],
+  ['teamFacts', 'Team facts (confirmed by the team)', ['team facts']],
   ['researchCollection', 'Collection name (context)', ['collection name']],
   ['researchLook', 'Look number (context)', ['look number']],
   ['researchLinks', 'Reference links (context)', ['reference links', 'archive links', 'runway links']],
@@ -172,7 +173,7 @@ export const FIELDS: [keyof Product | ImportExtra, string, string[]][] = [
 ];
 export function guessField(header: string): string {
   const h = header.toLowerCase().trim();
-  if (/^form (title|description) draft$/.test(h)) return '';
+  if (/^form (title|description) draft$/.test(h) || h === 'shop category') return '';
   for (const [k, , syn] of FIELDS) if (syn.some((s) => h === s)) return k as string;
   for (const [k, , syn] of FIELDS) if (syn.some((s) => s.length > 2 && h.includes(s))) return k as string;
   return '';

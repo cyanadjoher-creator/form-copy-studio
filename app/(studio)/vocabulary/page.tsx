@@ -64,7 +64,7 @@ function VocabularyView() {
         </div> : groups.map((g) => <div key={g.key} className={'gloss-group tone-' + g.tone}>
           <h3>{g.label} <span className="small muted">{g.terms.length} terms</span></h3>
           {g.help && <p className="small muted" style={{ margin: '0 0 6px' }}>{g.help}</p>}
-          <div>{g.terms.map((t) => <span key={t.t} className={'gterm' + (t.src.length === 1 && t.src[0] === 'studio' ? ' studio' : '')}>{t.src.map(dot)}{t.t}{!!t.aka?.length && <span className="aka">not {t.aka.join(', ')}</span>}</span>)}</div>
+          <div>{g.terms.map((t) => <span key={t.t} className={'gterm' + (t.src.length === 1 && t.src[0] === 'studio' ? ' studio' : '')}>{t.src.map(dot)}{t.t}{!!t.aka?.length && <span className="aka">{g.key === 'shop' ? t.aka.join(', ') : 'not ' + t.aka.join(', ')}</span>}</span>)}</div>
         </div>)}
       </>
     );

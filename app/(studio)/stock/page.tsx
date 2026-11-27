@@ -145,7 +145,7 @@ function MapModal({ rows, name, onClose, onDone }: { rows: string[][]; name: str
     if (!map.includes('brand') && !map.includes('name')) return toast('Map at least Brand or Item name');
     const items = body.map((r) => {
       const o: Record<string, string> = {}; const extra: string[] = [];
-      head.forEach((h, i) => { const v = String(r[i] ?? '').trim(); if (!v) return; if (/^FORM (title|description) draft$/i.test(h.trim()) && !map[i]) return; if (map[i]) o[map[i]] = o[map[i]] ? o[map[i]] + ' ' + v : v; else extra.push(`${h}: ${v}`); });
+      head.forEach((h, i) => { const v = String(r[i] ?? '').trim(); if (!v) return; if (/^(FORM (title|description) draft|Shop category)$/i.test(h.trim()) && !map[i]) return; if (map[i]) o[map[i]] = o[map[i]] ? o[map[i]] + ' ' + v : v; else extra.push(`${h}: ${v}`); });
       if (extra.length) o.notes = [o.notes, ...extra].filter(Boolean).join('\n');
       return o;
     });

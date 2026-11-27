@@ -84,3 +84,14 @@ test('the product-page export splits the copy into the Copy Guide sections', () 
   assert.equal(s.season, 'Fall/Winter 2005');
   assert.match(s.html, /<li>Zip fly<\/li>/);
 });
+
+test('every piece is placed in a shop category, denim and sets first', async () => {
+  const { shopCategoryFor } = await import('../lib/glossary.ts');
+  assert.equal(shopCategoryFor({ category: 'Skirts', name: 'Indigo Denim Wrap Midi Skirt' }), 'Denim');
+  assert.equal(shopCategoryFor({ category: 'Skirts', name: 'Blue Denim-Print Pareo Skirt' }), 'Skirts');
+  assert.equal(shopCategoryFor({ category: 'Bags', name: 'Indigo Denim Harness Tote' }), 'Bags');
+  assert.equal(shopCategoryFor({ category: 'Tops', name: 'Pink and Green Paisley Jacket and Skirt Set' }), 'Sets');
+  assert.equal(shopCategoryFor({ category: 'Jewellery', name: 'Silver K&T Emerald Ring' }), 'Rings');
+  assert.equal(shopCategoryFor({ category: 'Cardigans', name: 'Navy Hooded Cardigan' }), 'Knitwear');
+  assert.equal(shopCategoryFor({ category: '', name: 'Mystery piece' }), '');
+});
