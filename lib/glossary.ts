@@ -20,6 +20,8 @@ export const SOURCE_LABEL: Record<GlossSource, string> = {
 
 type F = typeof FROZEN;
 export const FROZEN_VOCAB = FROZEN as F;
+// Team decision (27 Nov, Cyana): the frozen "Beige / Tan" is shown and stored as "Beige".
+export const COLOUR_RENAMES: Record<string, string> = { 'Beige / Tan': 'Beige' };
 const fz = (list: string[], aka: Record<string, string[]> = {}): GlossTerm[] => list.filter(Boolean).map((t) => ({ t, src: ['freeze'], ...(aka[t] ? { aka: aka[t] } : {}) }));
 const T = (src: GlossSource[], spec: string): GlossTerm[] =>
   spec.split('|').map((s) => s.trim()).filter(Boolean).map((s) => {
@@ -75,7 +77,7 @@ export const SECTION_ORDER = ['History', 'Short description', 'Long description'
 /* ---------- the glossary, by highlighted category ---------- */
 const houses = FROZEN_VOCAB.FASHION_HOUSE;
 export const GLOSSARY: GlossGroup[] = [
-  { key: 'shop', label: 'Shop categories', tone: 'guide', help: 'The measurement guide sections, used to list and filter the export. Orange: added, not in the guide yet.', terms: [] },
+  { key: 'shop', label: 'Shop categories', tone: 'guide', help: 'The shop structure (27 Nov): top-level categories, with Accessories and Jewellery holding subcategories. Orange: still to confirm.', terms: [] },
   { key: 'types', label: 'Item types', tone: 'ink', help: 'What the piece is. Shop categories follow the Copy Guide item types.', terms: merge(
     T(['guide'], 'Bag|Hat|Sunglasses|Belt|Shoes|T-shirt|Tank top|Shirt|Shorts|Jeans|Trousers|Skirt|Dress|Book|CD|Film'),
     T(['fashionpedia'], 'Blazer|Bolero jacket|Bomber jacket=flight jacket|Trench coat|Chesterfield coat|Peacoat=pea coat|Duffle coat=duffel coat|Parka|Cape|Poncho|Gilet|Waistcoat|Cardigan|Jumper=sweater,pullover|Polo shirt|Henley|Hoodie=hooded sweatshirt|Sweatshirt|Blouse|Camisole|Bodysuit|Corset|Bustier|Kaftan=caftan|Slip dress|Shirt dress|Sheath dress|Wrap dress|Babydoll dress=babydoll|Jumpsuit|Dungarees=overalls|Culottes|Palazzo trousers=palazzo pants|Cargo trousers=cargo pants|Chinos|Joggers|Leggings|Pencil skirt|A-line skirt|Wrap skirt|Kilt|Sarong|Bermuda shorts|Suit|Three-piece suit|Tuxedo jacket=dinner jacket'),
@@ -109,7 +111,7 @@ export const GLOSSARY: GlossGroup[] = [
     T(['fashionpedia'], 'Cotton|Linen|Wool|Virgin wool|Merino wool|Silk|Cashmere|Mohair|Alpaca|Angora|Camel hair|Ramie|Hemp|Viscose=rayon|Acetate|Polyamide|Nylon|Polyester|Acrylic|Elastane=spandex,lycra|Cupro|Lyocell'),
     T(['fashionpedia'], 'Denim|Jersey|Poplin|Oxford|Twill|Gabardine|Crepe=crêpe|Georgette|Chiffon|Organza|Taffeta|Satin|Velvet|Corduroy|Tweed|Flannel|Canvas|Seersucker|Jacquard|Brocade|Lamé|Lace|Tulle|Mesh|Neoprene|Moleskin|Bouclé=boucle|Fleece|Terry=terry cloth|Melton|Loden|Herringbone tweed')) },
   { key: 'pattern', label: 'Pattern and print', tone: 'freeze', help: 'All frozen.', terms: fz(FROZEN_VOCAB.PATTERN_MOTIF, { 'Snakeskin pattern': ['snakeskin print', 'python print'], 'Check': ['checked', 'checks'], 'Leopard': ['leopard print'], 'Polka dot': ['polka dots'] }) },
-  { key: 'colour', label: 'Colour', tone: 'freeze', help: 'The colour field takes the frozen colours. A shade word (navy, ecru) can still be written in the copy.', terms: merge(fz(FROZEN_VOCAB.COLOUR), fz(FROZEN_VOCAB.COLOUR_PALETTE, { 'Skin-tone matched': ['nude'], 'Ecru colour': ['ecru'] })) },
+  { key: 'colour', label: 'Colour', tone: 'freeze', help: 'The colour field takes the frozen colours. A shade word (navy, ecru) can still be written in the copy.', terms: merge(fz(FROZEN_VOCAB.COLOUR.map((c) => COLOUR_RENAMES[c] || c), { Beige: ['beige / tan (frozen name)', 'tan', 'camel'] }), fz(FROZEN_VOCAB.COLOUR_PALETTE, { 'Skin-tone matched': ['nude'], 'Ecru colour': ['ecru'] })) },
   { key: 'condition', label: 'Condition', tone: 'freeze', help: 'Frozen grades, best to worst.', terms: fz(FROZEN_VOCAB.CONDITION) },
   { key: 'season', label: 'Season', tone: 'freeze', help: 'Frozen season types.', terms: fz(FROZEN_VOCAB.SEASON_V1) },
   { key: 'houses', label: 'Fashion houses', tone: 'freeze', help: 'Frozen house names (' + houses.length + '). Dior is the house, Christian Dior the designer.', terms: fz(houses) },
@@ -120,7 +122,7 @@ export const GLOSSARY: GlossGroup[] = [
 /** Field-level synonyms. A string means a safe, automatic match; an array means several frozen terms fit, so a person picks. */
 export const FIELD_ALIASES: Record<'colours' | 'conditions' | 'seasonTypes' | 'brands', Record<string, string | string[]>> = {
   colours: {
-    gray: 'Grey', charcoal: 'Grey', anthracite: 'Grey', 'off-white': 'White', 'off white': 'White', ivory: 'White', cream: 'White', ecru: 'White', beige: 'Beige / Tan', tan: 'Beige / Tan', camel: 'Beige / Tan', sand: 'Beige / Tan', nude: 'Beige / Tan', stone: 'Beige / Tan',
+    'beige / tan': 'Beige', gray: 'Grey', charcoal: 'Grey', anthracite: 'Grey', 'off-white': 'White', 'off white': 'White', ivory: 'White', cream: 'White', ecru: 'White', beige: 'Beige', tan: 'Beige', camel: 'Beige', sand: 'Beige', nude: 'Beige', stone: 'Beige',
     navy: 'Blue', 'navy blue': 'Blue', indigo: 'Blue', 'sky blue': 'Blue', teal: ['Blue', 'Green'], turquoise: ['Blue', 'Green'], burgundy: 'Red', bordeaux: 'Red', wine: 'Red', oxblood: 'Red', maroon: 'Red', crimson: 'Red',
     khaki: 'Green', olive: 'Green', 'army green': 'Green', taupe: ['Brown', 'Grey'], chocolate: 'Brown', cognac: 'Brown', rust: 'Orange', mustard: 'Yellow', fuchsia: 'Pink', magenta: 'Pink', lilac: 'Purple', lavender: 'Purple', violet: 'Purple', plum: 'Purple',
     bronze: 'Metallic', copper: 'Metallic', multicolor: 'Multicolour', multicolored: 'Multicolour', multicoloured: 'Multicolour', multi: 'Multicolour', 'black and white': 'Multicolour',
@@ -137,7 +139,7 @@ export const FIELD_ALIASES: Record<'colours' | 'conditions' | 'seasonTypes' | 'b
   },
 };
 export const FROZEN_FIELD_LISTS = {
-  colours: FROZEN_VOCAB.COLOUR,
+  colours: FROZEN_VOCAB.COLOUR.map((c) => COLOUR_RENAMES[c] || c),
   conditions: FROZEN_VOCAB.CONDITION,
   seasonTypes: [...FROZEN_VOCAB.SEASON_V1.filter((x) => x !== 'Unknown'), 'Decade', 'Unknown'],
   brands: houses.map((h) => h.toUpperCase()),
@@ -231,52 +233,57 @@ export function vocabularyBrief(category: string) {
 }
 
 /* ---------- shop categories (the measurement guide sections) ---------- */
-// From the FORM measurement guide (27 Nov). "added" marks sections the guide does not have yet, added so every piece has a home.
-export type ShopCategory = { name: string; measure: string; added?: boolean; note?: string };
+// From the FORM measurement guide (27 Nov), regrouped into the shop structure the team set the same day.
+export type ShopCategory = { name: string; measure: string; group?: string; added?: boolean; open?: boolean; note?: string };
+// Team structure (27 Nov, Cyana). Accessories and Jewellery hold subcategories; "open" marks a category still to confirm.
 export const SHOP_CATEGORIES: ShopCategory[] = [
-  { name: 'Tops + Outerwear', measure: 'C Chest x S Sleeve x L Length' },
-  { name: 'Knitwear', measure: 'C Chest x S Sleeve x L Length (as Tops + Outerwear)', added: true },
-  { name: 'Denim', measure: 'By item type (Bottoms, Skirts, Tops + Outerwear)', added: true },
-  { name: 'Bottoms', measure: 'W Waist x R Front rise x I Inseam' },
+  { name: 'Tops', measure: 'C Chest x S Sleeve x L Length' },
+  { name: 'Outerwear', measure: 'C Chest x S Sleeve x L Length' },
+  { name: 'Knitwear', measure: 'C Chest x S Sleeve x L Length' },
+  { name: 'Denim', measure: 'By item type (Trousers, Skirts, Tops, Outerwear)', note: 'Takes every denim garment, whatever its type.' },
+  { name: 'Trousers', measure: 'W Waist x R Front rise x I Inseam', note: 'Includes shorts. Named Bottoms in the measurement guide.' },
   { name: 'Skirts', measure: 'W Waist x B Hem width x L Length' },
   { name: 'Dresses', measure: 'C Chest x W Waist x L Length' },
-  { name: 'Jumpsuits', measure: 'C Chest x I Inseam x L Length' },
-  { name: 'Sets', measure: 'Each piece by its own type', added: true },
-  { name: 'Lingerie + Swimwear', measure: 'C Chest x W Waist x L Length', added: true },
+  { name: 'Jumpsuits', measure: 'C Chest x I Inseam x L Length', open: true, note: 'To confirm: not needed for now.' },
+  { name: 'Sets', measure: 'Each piece by its own type' },
+  { name: 'Lingerie', measure: 'C Chest x W Waist x L Length' },
+  { name: 'Swimwear', measure: 'C Chest x W Waist x L Length' },
   { name: 'Footwear', measure: 'H Heel height' },
   { name: 'Bags', measure: 'H Height x W Width x D Depth' },
-  { name: 'Small leather goods', measure: 'H Height x W Width x D Depth', added: true },
-  { name: 'Belts', measure: 'L Length (shortest-longest) x W Width' },
-  { name: 'Scarves', measure: 'W Width x L Length' },
-  { name: 'Gloves', measure: 'L Length x W Width', added: true },
-  { name: 'Hats', measure: 'C Inside circumference' },
-  { name: 'Eyewear', measure: 'L Lens width x B Bridge x T Temple' },
-  { name: 'Watches', measure: 'W Case width x L Length' },
-  { name: 'Bracelets', measure: 'L Length' },
-  { name: 'Cuffs', measure: 'D Diameter' },
-  { name: 'Rings', measure: 'D Diameter' },
-  { name: 'Earrings', measure: 'L Length x W Width', note: 'The guide image shows the Jumpsuits caption under Earrings; L Length x W Width is the copy prompt rule.' },
-  { name: 'Necklaces', measure: 'L Chain length x W Pendant width x H Pendant height' },
-  { name: 'Brooches + other jewellery', measure: 'H Height x W Width', added: true },
-  { name: 'Books, ephemera + objects', measure: 'H Height x W Width x D Depth' },
+  { name: 'Leather goods', measure: 'H Height x W Width x D Depth', note: 'Small leather goods: wallets, card holders, pouches.' },
+  { name: 'Belts', group: 'Accessories', measure: 'L Length (shortest-longest) x W Width' },
+  { name: 'Scarves', group: 'Accessories', measure: 'W Width x L Length' },
+  { name: 'Gloves', group: 'Accessories', measure: 'L Length x W Width' },
+  { name: 'Hats', group: 'Accessories', measure: 'C Inside circumference' },
+  { name: 'Eyewear', group: 'Accessories', measure: 'L Lens width x B Bridge x T Temple' },
+  { name: 'Watches', group: 'Jewellery', measure: 'W Case width x L Length' },
+  { name: 'Bracelets', group: 'Jewellery', measure: 'L Length' },
+  { name: 'Cuffs', group: 'Jewellery', measure: 'D Diameter' },
+  { name: 'Rings', group: 'Jewellery', measure: 'D Diameter' },
+  { name: 'Earrings', group: 'Jewellery', measure: 'L Length x W Width', note: 'The guide image shows the Jumpsuits caption under Earrings; L Length x W Width is the copy prompt rule.' },
+  { name: 'Necklaces', group: 'Jewellery', measure: 'L Chain length x W Pendant width x H Pendant height' },
+  { name: 'Brooches', group: 'Jewellery', measure: 'H Height x W Width' },
+  { name: 'Books + ephemera', measure: 'H Height x W Width x D Depth' },
 ];
-GLOSSARY.find((g) => g.key === 'shop')!.terms.push(...SHOP_CATEGORIES.map((c): GlossTerm => ({ t: c.name, src: [c.added ? 'studio' : 'guide'], aka: [c.measure] })));
+/** The top-level shop category ("Accessories", "Jewellery" or the category itself) and the subcategory, if any. */
+export function shopLevels(name: string) { const c = SHOP_CATEGORIES.find((x) => x.name === name); return { top: c?.group || name, sub: c?.group ? name : '' }; }
+GLOSSARY.find((g) => g.key === 'shop')!.terms.push(...SHOP_CATEGORIES.map((c): GlossTerm => ({ t: c.name, src: [c.open ? 'studio' : 'guide'], aka: [(c.group ? c.group + ' · ' : '') + c.measure + (c.open ? ' · to confirm' : '')] })));
 const SHOP_BY_CATEGORY: Record<string, string> = {
-  Blazers: 'Tops + Outerwear', Blouses: 'Tops + Outerwear', Coats: 'Tops + Outerwear', 'Hoodies & Sweatshirts': 'Tops + Outerwear', Jackets: 'Tops + Outerwear', Shirts: 'Tops + Outerwear',
-  'T-shirts': 'Tops + Outerwear', 'Tank tops': 'Tops + Outerwear', Tops: 'Tops + Outerwear', Waistcoats: 'Tops + Outerwear',
-  Cardigans: 'Knitwear', Jumpers: 'Knitwear', Knitwear: 'Knitwear', Jeans: 'Denim', Trousers: 'Bottoms', Shorts: 'Bottoms', Skirts: 'Skirts', Dresses: 'Dresses', Jumpsuits: 'Jumpsuits',
-  Sets: 'Sets', Suits: 'Sets', Lingerie: 'Lingerie + Swimwear', Swimwear: 'Lingerie + Swimwear', Shoes: 'Footwear', Boots: 'Footwear', Bags: 'Bags', 'Small leather goods': 'Small leather goods',
+  Blouses: 'Tops', 'Hoodies & Sweatshirts': 'Tops', Shirts: 'Tops', 'T-shirts': 'Tops', 'Tank tops': 'Tops', Tops: 'Tops',
+  Blazers: 'Outerwear', Coats: 'Outerwear', Jackets: 'Outerwear', Waistcoats: 'Outerwear',
+  Cardigans: 'Knitwear', Jumpers: 'Knitwear', Knitwear: 'Knitwear', Jeans: 'Denim', Trousers: 'Trousers', Shorts: 'Trousers', Skirts: 'Skirts', Dresses: 'Dresses', Jumpsuits: 'Jumpsuits',
+  Sets: 'Sets', Suits: 'Sets', Lingerie: 'Lingerie', Swimwear: 'Swimwear', Shoes: 'Footwear', Boots: 'Footwear', Bags: 'Bags', 'Small leather goods': 'Leather goods',
   Belts: 'Belts', Scarves: 'Scarves', Gloves: 'Gloves', Hats: 'Hats', Sunglasses: 'Eyewear', Eyewear: 'Eyewear', Watches: 'Watches',
-  Bracelets: 'Bracelets', Cuffs: 'Cuffs', Rings: 'Rings', Earrings: 'Earrings', Necklaces: 'Necklaces', Books: 'Books, ephemera + objects', 'CDs & Films': 'Books, ephemera + objects',
+  Bracelets: 'Bracelets', Cuffs: 'Cuffs', Rings: 'Rings', Earrings: 'Earrings', Necklaces: 'Necklaces', Books: 'Books + ephemera', 'CDs & Films': 'Books + ephemera',
 };
-const GARMENT_SHOP = ['Tops + Outerwear', 'Knitwear', 'Bottoms', 'Skirts', 'Dresses', 'Jumpsuits', 'Sets'];
+const GARMENT_SHOP = ['Tops', 'Outerwear', 'Knitwear', 'Trousers', 'Skirts', 'Dresses', 'Jumpsuits', 'Sets'];
 /** The shop category a piece is listed under. Empty when it cannot be placed: the export flags it. */
 export function shopCategoryFor(p: { category: string; name: string; material?: string }): string {
   const name = String(p.name || '').toLowerCase();
   let shop = SHOP_BY_CATEGORY[p.category] || '';
   if (p.category === 'Jewellery' || (!shop && /\b(ring|bracelet|bangle|cuff|earrings?|necklace|pendant|choker|brooch|pin)\b/.test(name))) {
     shop = /\bring\b/.test(name) ? 'Rings' : /\b(bracelet|bangle)\b/.test(name) ? 'Bracelets' : /\bcuff\b/.test(name) ? 'Cuffs' : /\bearrings?\b/.test(name) ? 'Earrings'
-      : /\b(necklace|pendant|choker)\b/.test(name) ? 'Necklaces' : 'Brooches + other jewellery';
+      : /\b(necklace|pendant|choker)\b/.test(name) ? 'Necklaces' : 'Brooches';
   }
   if (/\b(jumpsuit|overalls|dungarees|boilersuit|catsuit)\b/.test(name) && (!shop || GARMENT_SHOP.includes(shop))) shop = 'Jumpsuits';
   else if (/\b(set|twinset|two-piece|suit)\b/.test(name) && (!shop || GARMENT_SHOP.includes(shop))) shop = 'Sets';

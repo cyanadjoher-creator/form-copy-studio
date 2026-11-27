@@ -7,9 +7,10 @@ import { CONTEXT_MISSING } from '../lib/domain.ts';
 
 test('the frozen vocabulary is loaded as delivered', () => {
   assert.equal(FROZEN_VOCAB.COLOUR.length, 17);
+  assert(DEFAULT_VOCAB.colours.includes('Beige') && !DEFAULT_VOCAB.colours.includes('Beige / Tan'));
   assert.deepEqual(FROZEN_VOCAB.CONDITION, ['Pristine', 'Excellent', 'Good', 'Fair', 'Poor']);
   assert(FROZEN_VOCAB.FASHION_HOUSE.includes('Maison Martin Margiela'));
-  assert.deepEqual(DEFAULT_VOCAB.colours, FROZEN_VOCAB.COLOUR);
+  
   // Every glossary term is listed once per group.
   for (const g of GLOSSARY) assert.equal(new Set(g.terms.map((t) => t.t.toLowerCase())).size, g.terms.length, g.key);
 });
@@ -17,7 +18,8 @@ test('the frozen vocabulary is loaded as delivered', () => {
 test('boutique field values move onto the frozen term, and ambiguous ones are left for a person', () => {
   assert.equal(frozenTerm('colours', 'Navy').term, 'Blue');
   assert.equal(frozenTerm('colours', 'gray').term, 'Grey');
-  assert.equal(frozenTerm('colours', 'Beige').term, 'Beige / Tan');
+  assert.equal(frozenTerm('colours', 'Beige').term, 'Beige');
+  assert.equal(frozenTerm('colours', 'Beige / Tan').term, 'Beige');
   assert.deepEqual(frozenTerm('colours', 'Teal').choices, ['Blue', 'Green']);
   assert.equal(toFrozen('conditions', DEFAULT_VOCAB.conditions, 'New with tags').value, 'Pristine');
   assert.deepEqual(toFrozen('conditions', DEFAULT_VOCAB.conditions, 'Very good').choose, ['Excellent', 'Good']);
@@ -93,6 +95,8 @@ test('every piece is placed in a shop category, denim and sets first', async () 
   assert.equal(shopCategoryFor({ category: 'Tops', name: 'Pink and Green Paisley Jacket and Skirt Set' }), 'Sets');
   assert.equal(shopCategoryFor({ category: 'Jewellery', name: 'Silver K&T Emerald Ring' }), 'Rings');
   assert.equal(shopCategoryFor({ category: 'Cardigans', name: 'Navy Hooded Cardigan' }), 'Knitwear');
+  assert.equal(shopCategoryFor({ category: 'Coats', name: 'Grey Military Shearling Coat' }), 'Outerwear');
+  assert.equal(shopCategoryFor({ category: 'Shorts', name: 'Olive Crinkled Cargo Shorts' }), 'Trousers');
   assert.equal(shopCategoryFor({ category: '', name: 'Mystery piece' }), '');
 });
 
