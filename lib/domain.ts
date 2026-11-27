@@ -18,7 +18,9 @@ export type Source = { title: string; url?: string; supports?: string };
 export type DraftHistory = 'unreviewed' | 'candidate' | 'accepted' | 'missing' | 'omitted' | 'archive';
 export type CopyControl = { history: DraftHistory; paragraph: string; header: string; photos: 'unreviewed' | 'confirmed' | 'conflict'; blockers: string[]; contextOrigin: string; contextKey?: string };
 /** Result of the 'Research history' step, shown on the piece for review. */
-export type ContextResearch = { at: string; status: 'found' | 'boutique' | 'nothing' | 'error'; paragraph: string; sources: Source[]; findings: string[]; searches: number; pages: number; note: string };
+/** What the house was doing at the time: who designed, the collection and its idea. Context for the team, not proof about this piece. */
+export type EraContext = { designer: string; collection: string; summary: string; sources: Source[] };
+export type ContextResearch = { at: string; status: 'found' | 'boutique' | 'nothing' | 'error'; paragraph: string; sources: Source[]; findings: string[]; searches: number; pages: number; note: string; era?: EraContext };
 export type Photo = { id: string; url: string; role: string; sha256: string; position: number };
 export type HistoryItem = { t: string; s: string; n: string };
 
@@ -427,6 +429,7 @@ export function buildInput(p: Product, prompt: { text: string; rules: string }, 
     opts.fieldsOnly ? '' : vocabularyBrief(p.category),
     opts.fieldsOnly ? 'Do not write any copy: report fields, flags and photo_set_status only.' : [
       'EXACT HISTORY CONTEXT (used by the app, not rewritten by the model)\n'+context,
+      p.contextResearch?.era?.summary ? 'HOUSE AND ERA CONTEXT (researched; collection level, not proof about this piece)\n' + [p.contextResearch.era.designer && 'Designer at the house: ' + p.contextResearch.era.designer, p.contextResearch.era.collection && 'Collection: ' + p.contextResearch.era.collection, p.contextResearch.era.summary].filter(Boolean).join('\n') : '',
       (!r && opts.webSearch) ? `There is no FORM research row for this piece, so research its history now with web search before writing anything. Search at least: the house and the season the boutique gave (for example "${[p.brand, p.season || p.seasonRaw].filter(Boolean).join(' ')} collection review"), then the designer with the garment's distinctive feature, then any print wording or label text. Use the boutique description as leads to search, not as proof. Write history_paragraph by the History rules above only from what the pages you found establish, and list in sources every page you used, with its exact URL, what it supports, and evidence_role "collection" or "item". Never imply this physical item was worn on the runway. If the search finds nothing usable but the boutique description makes a specific historical claim, put a short neutral paragraph restating only that claim in history_from_boutique (it will be checked by a person); otherwise leave both empty.` : 'Do not invent or rewrite history. The app assembles this from matched evidence.',
       'Draft ONLY separate fields. Do not return a website block or include dates, sizing, care, country, or history in product_sentence or construction. product_sentence is material and garment only. Do not infer wear from a seller grade. Damage bullets require visible or documented defects. Write original factual boutique_text, not the supplier description; omit if insufficient.',
     ].join('\n'),

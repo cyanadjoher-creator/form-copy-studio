@@ -121,7 +121,7 @@ export function Ingestion({ id, brand }: { id?: string; brand?: string }) {
       const cur = await persist();
       const r = await api<{ product: Product; filled?: string[]; matched?: string; blocked?: boolean }>('/api/ai/' + kind, { body: { id: cur.id } });
       take(r.product);
-      if (kind === 'research') { const c = r.product.contextResearch; toast(c?.status === 'found' ? 'History found · review it below' : c?.status === 'boutique' ? 'Only the boutique\'s claim was found' : c?.status === 'error' ? 'Research failed · see the note' : 'Nothing documented found'); return; }
+      if (kind === 'research') { const c = r.product.contextResearch; toast(c?.status === 'found' ? 'History found · review it below' : c?.era ? 'House and era context found · see below' : c?.status === 'boutique' ? 'Only the boutique\'s claim was found' : c?.status === 'error' ? 'Research failed · see the note' : 'Nothing documented found'); return; }
       toast(r.matched ? 'Approved copy loaded from the archive' : kind === 'fill' ? (r.filled?.length ? 'Filled: ' + r.filled.map((k) => FIELD_LABEL[k] || k).join(', ') : 'Nothing new to fill: see the notes') : r.blocked ? 'Draft needs a check · see To verify' : 'Draft ready');
     });
   }
@@ -279,8 +279,15 @@ export function Ingestion({ id, brand }: { id?: string; brand?: string }) {
               <div className="row between"><b>History &amp; context</b><button className="btn sm" onClick={() => runAi('research')}>{busy === 'research' ? 'Researching… (up to 2 min)' : c ? 'Research again' : 'Research history'}</button></div>
               {tracker && <p className="small" style={{ margin: '6px 0 0' }}>This piece matches a FORM tracker row, so its reviewed history is used first.</p>}
               {!c ? <p className="small muted" style={{ margin: '6px 0 0' }}>Not researched yet. Research history searches the web for the house and the season given, then shows what it found here for you to review. Generate copy also runs it if needed.</p> : <>
-                <p className="small" style={{ margin: '6px 0' }}><b>{c.status === 'found' ? 'History found' : c.status === 'boutique' ? 'Only the boutique description makes a claim (unverified)' : c.status === 'error' ? 'Research failed' : 'Nothing documented found'}</b> · {c.searches} web searches · {c.pages} pages · {c.at}</p>
-                {c.paragraph && <p style={{ margin: '6px 0', fontStyle: 'italic' }}>{c.paragraph}</p>}
+                <p className="small" style={{ margin: '6px 0' }}><b>{c.status === 'found' ? 'History found for this piece' : c.status === 'boutique' ? (c.era ? 'House and era context found · piece itself not traced' : 'Only the boutique description makes a claim (unverified)') : c.status === 'error' ? 'Research failed' : c.era ? 'House and era context found · piece itself not traced' : 'Nothing documented found'}</b> · {c.searches} web searches · {c.pages} pages · {c.at}</p>
+                {c.era && <div style={{ margin: '8px 0', padding: '8px 10px', background: '#fff', border: '1px solid var(--rule-2)' }}>
+                  <b className="small">House and era context</b> <span className="small muted">what the house was doing then; context for you, not proof about this piece</span>
+                  {(c.era.designer || c.era.collection) && <p className="small" style={{ margin: '4px 0' }}>{[c.era.designer, c.era.collection].filter(Boolean).join(' · ')}</p>}
+                  <p style={{ margin: '4px 0' }}>{c.era.summary}</p>
+                  <ul className="src" style={{ margin: '4px 0 0' }}>{c.era.sources.map((s, i) => <li key={(s.url || s.title) + i}>{s.url ? <a href={s.url} target="_blank" rel="noreferrer"><b>{s.title}</b> ↗</a> : <b>{s.title}</b>}{s.supports && <><br /><span className="muted small">{s.supports}</span></>}</li>)}</ul>
+                  <a href="#" className="small" onClick={(e) => { e.preventDefault(); edit('teamFacts', [p.teamFacts, [c.era!.designer, c.era!.collection].filter(Boolean).join(', ') + ': ' + c.era!.summary].filter(Boolean).join('\n')); }}>Keep as a team fact</a>
+                </div>}
+                {c.paragraph && <><span className="small muted">{c.status === 'found' ? 'History for this piece:' : 'Boutique claim (unverified):'}</span><p style={{ margin: '4px 0 6px', fontStyle: 'italic' }}>{c.paragraph}</p></>}
                 {!!c.sources.length && <ul className="src" style={{ margin: '6px 0' }}>{c.sources.map((s, i) => <li key={(s.url || s.title) + i}>{s.url ? <a href={s.url} target="_blank" rel="noreferrer"><b>{s.title}</b> ↗</a> : <b>{s.title}</b>}{s.supports && <><br /><span className="muted small">{s.supports}</span></>}</li>)}</ul>}
                 {!!c.findings.length && <><span className="small muted">What the searches turned up:</span><ul className="small" style={{ margin: '4px 0 0', paddingLeft: 18 }}>{c.findings.map((f, i) => <li key={i}>{f}</li>)}</ul></>}
                 {c.note && <p className="small muted" style={{ margin: '6px 0 0' }}>{c.note}</p>}
