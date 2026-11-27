@@ -58,6 +58,7 @@ export const POST = handle(async (req: Request) => {
       notes: [o.listingTitle && 'Listing title: ' + o.listingTitle, o.photoFolder && 'Photo folder: ' + o.photoFolder, o.notes].filter(Boolean).join('\n'),
       research: [o.researchCollection && 'Collection: ' + o.researchCollection, o.researchLook && 'Look: ' + o.researchLook, o.research, o.researchLinks && 'Links: ' + o.researchLinks].filter(Boolean).join('\n'),
       teamFacts: o.teamFacts || '',
+      sizeLine: /men(?!s?wear)|^m$|menswear|homme|uomo/i.test(o.sizeLine || '') && !/women|femme|donna/i.test(o.sizeLine || '') ? 'Menswear' : /women|femme|donna|^w$/i.test(o.sizeLine || '') ? 'Womenswear' : '',
       seasonRaw: o.seasonRaw || '', season: ns.season, seasonType: ns.type, seasonYear: ns.yv, year: ns.year,
       history: [{ t: now(), s: 'Imported', n: 'from ' + (rowName || bname) }],
     });

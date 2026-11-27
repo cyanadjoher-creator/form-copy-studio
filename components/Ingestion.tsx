@@ -9,9 +9,11 @@ import {
   readiness, refMatch, refNear, seasonCompose, titleCase, type Product, type Ref, type Stage, type Vocab } from '@/lib/domain';
 
 import { approvalCheck, copyControl, copyForShopify } from '@/lib/copy-workflow';
+import { convertSize, eraNote, sizeIn } from '@/lib/size-conversion';
+import { useRegion } from './region';
 const titleCaseShop = (s: string) => s.replace(/\b\w/g, (c) => c.toUpperCase());
 
-const EDIT_KEYS: (keyof Product)[] = ['sku', 'tempId', 'listingUrl', 'verifiedWear', 'boutiqueRef', 'productCode', 'boutiqueId', 'brand', 'name', 'category', 'colour', 'material', 'madeIn', 'measurements', 'care', 'season', 'seasonType', 'seasonYear', 'year', 'sizeSystem', 'size', 'condition', 'boutiqueDesc', 'notes', 'research', 'copy', 'boutiqueText', 'fieldSrc', 'conflicts', 'needsInfo', 'flags', 'holds'];
+const EDIT_KEYS: (keyof Product)[] = ['sku', 'tempId', 'listingUrl', 'verifiedWear', 'boutiqueRef', 'productCode', 'boutiqueId', 'brand', 'name', 'category', 'colour', 'material', 'madeIn', 'measurements', 'care', 'season', 'seasonType', 'seasonYear', 'year', 'sizeSystem', 'size', 'condition', 'boutiqueDesc', 'notes', 'research', 'teamFacts', 'sizeLine', 'copy', 'boutiqueText', 'fieldSrc', 'conflicts', 'needsInfo', 'flags', 'holds'];
 const pick = (p: Product) => Object.fromEntries(EDIT_KEYS.map((k) => [k, p[k]])) as Partial<Product>;
 const QUEUES: [string, string, (p: Product) => boolean][] = [
   ['open', 'Open items', (p) => !DONE.includes(p.status)],
@@ -39,6 +41,7 @@ export function Ingestion({ id, brand }: { id?: string; brand?: string }) {
   const { data, setProduct, patch: patchData, toast } = useData();
   const router = useRouter();
   const lb = useLightbox();
+  const [region] = useRegion();
   const [queue, setQueue] = useState(brand ? 'brand' : 'open');
   const [curId, setCurId] = useState<string | undefined>(id);
   const [p, setP] = useState<Product>(() => (id && data?.products.find((x) => x.id === id)) || blankProduct());
@@ -251,7 +254,14 @@ export function Ingestion({ id, brand }: { id?: string; brand?: string }) {
               <div className="grid g2" style={{ gap: 8 }}>
                 <select value={p.sizeSystem} onChange={(e) => edit('sizeSystem', e.target.value)} aria-label="Size system"><option value="">Size system</option>{Object.keys(v.sizes).map((s) => <option key={s}>{s}</option>)}</select>
                 <VSelect list={v.sizes[p.sizeSystem] || []} value={p.size} onChange={(x) => edit('size', x)} placeholder="Size" />
-              </div></div>
+              </div>
+              <div className="row" style={{ gap: 8, marginTop: 6, alignItems: 'center' }}>
+                <select value={p.sizeLine || ''} onChange={(e) => edit('sizeLine', e.target.value)} aria-label="Line" style={{ width: 150 }}><option value="">Line</option><option>Womenswear</option><option>Menswear</option></select>
+                {(() => { const c = convertSize(p.sizeSystem, p.size, p.category, p.sizeLine || ''); const mine = sizeIn(c, region);
+                  return <span className="small">{c ? <>{mine ? <>In {region}: <b>{mine}</b> · </> : ''}<span className="muted">{(['Letter', 'EU', 'FR', 'IT', 'UK', 'US'] as const).filter((x) => x !== region).map((x) => sizeIn(c, x)).filter(Boolean).join(' · ')}{c.assumed.length ? ' · ' + c.assumed.join(', ') : ''}</span></> : p.size ? <span className="muted">No conversion for this size: see <a href="/sizes">Sizes</a></span> : null}</span>; })()}
+              </div>
+              {!!eraNote(p.sizeSystem, p.size, p.year, p.sizeLine || '') && <p className="small" style={{ margin: '6px 0 0', color: 'var(--bad-ink)' }}>{eraNote(p.sizeSystem, p.size, p.year, p.sizeLine || '')}</p>}
+            </div>
             <div style={{ gridColumn: '1/-1' }}><label className="f">Made in <span>verified only</span>{tag('madeIn')}</label><input type="text" value={p.madeIn} onChange={(e) => edit('madeIn', e.target.value)} /></div>
           </div>
           <label className="f">Measurements <span>go in the final bullet</span>{tag('measurements')}</label><input type="text" value={p.measurements} onChange={(e) => edit('measurements', e.target.value)} placeholder="H27 x W26 x D11 cm" />

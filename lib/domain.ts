@@ -34,6 +34,8 @@ export type Product = {
   boutiqueDesc: string; notes: string; research: string; sources: Source[];
   /** Facts the FORM team adds by hand (e.g. "made during Jean Paul Gaultier's time at Hermès"). Kept on the piece, logged, and used as trusted input by research and every new draft. */
   teamFacts?: string;
+  /** Womenswear or Menswear: decides which size conversion applies. To align with the field vocabulary when it lands. */
+  sizeLine?: string;
   status: Stage; needsInfo: boolean; copy: string; boutiqueText: string; flags: string[];
   /** Checks held until confirmed (e.g. fibre on a blurry label). They survive regeneration and are cleared by hand. */
   holds: string[];
@@ -153,6 +155,7 @@ export const FIELDS: [keyof Product | ImportExtra, string, string[]][] = [
   ['category', 'Category', ['product type', 'product category', 'category', 'type', 'categorie', 'catégorie', 'department']],
   ['seasonRaw', 'Season / era', ['season', 'collection', 'saison', 'year', 'era', 'date']],
   ['sizeSystem', 'Size system', ['size system']],
+  ['sizeLine', 'Line (Womenswear / Menswear)', ['line', 'size line', 'gender', 'department']],
   ['size', 'Size', ['size', 'taille']],
   ['condition', 'Condition', ['condition', 'état', 'etat', 'grade']],
   ['verifiedWear', 'Verified wear (checked, not the seller grade)', ['verified wear']],

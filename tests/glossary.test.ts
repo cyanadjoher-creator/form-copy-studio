@@ -95,3 +95,17 @@ test('every piece is placed in a shop category, denim and sets first', async () 
   assert.equal(shopCategoryFor({ category: 'Cardigans', name: 'Navy Hooded Cardigan' }), 'Knitwear');
   assert.equal(shopCategoryFor({ category: '', name: 'Mystery piece' }), '');
 });
+
+test('sizes convert by line and the US label is read in its era', async () => {
+  const { convertSize, sizeIn, eraNote, usEraEquivalent } = await import('../lib/size-conversion.ts');
+  const w = convertSize('IT', '40', 'Dresses', 'Womenswear');
+  assert.equal(sizeIn(w, 'FR'), 'FR 38'); assert.equal(sizeIn(w, 'US'), 'US 4'); assert.equal(sizeIn(w, 'UK'), 'UK 8');
+  const m = convertSize('IT', '48', 'Jackets', 'Menswear');
+  assert.equal(sizeIn(m, 'US'), 'US 38');
+  assert.equal(sizeIn(convertSize('IT', '48', 'Trousers', 'Menswear'), 'US'), 'US 32');
+  assert.deepEqual(convertSize('IT', '40', 'Dresses', '')?.assumed, ['womenswear assumed (set the line)']);
+  assert.equal(usEraEquivalent('8', 2002)?.todaySize, '6');
+  assert.match(eraNote('US', '8', 2002), /about a US 6/);
+  assert.equal(eraNote('US', '8', 2015), '');
+  assert.match(eraNote('IT', '42', 1985), /before 1990/);
+});

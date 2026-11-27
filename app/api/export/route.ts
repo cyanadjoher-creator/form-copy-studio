@@ -4,6 +4,7 @@ import { listProducts, listBoutiques } from '@/lib/repo';
 import { DONE, now, type Product } from '@/lib/domain';
 import { copySections } from '@/lib/copy-workflow';
 import { SHOP_CATEGORIES, shopCategoryFor } from '@/lib/glossary';
+import { convertSize, eraNote, sizeIn } from '@/lib/size-conversion';
 
 export const dynamic = 'force-dynamic';
 
@@ -14,12 +15,13 @@ export const GET = handle(async (req: Request) => {
   const keep = (p: Product) => !!p.copy.trim() && (DONE.includes(p.status) || (scope === 'review' && ['Drafted', 'In review'].includes(p.status)));
   const [products, shops] = await Promise.all([listProducts(), listBoutiques()]);
   const shop = new Map(shops.map((b) => [b.id, b.name]));
-  const head = ['Shop category', 'Status', 'Brand', 'Title', 'Season or era', 'History', 'Short description', 'Long description', 'Country', 'Composition', 'Size', 'Care', 'Product code', 'Boutique SKU', 'Boutique', 'Category', 'Colour', 'Condition', 'Sources', 'Team facts', 'Shopify body (HTML)', 'Team edits / comments', 'Last update', 'Studio ID'];
+  const head = ['Shop category', 'Status', 'Brand', 'Title', 'Season or era', 'History', 'Short description', 'Long description', 'Country', 'Composition', 'Size', 'Size equivalents', 'Line', 'Size note (era)', 'Care', 'Product code', 'Boutique SKU', 'Boutique', 'Category', 'Colour', 'Condition', 'Sources', 'Team facts', 'Shopify body (HTML)', 'Team edits / comments', 'Last update', 'Studio ID'];
+  const equivalents = (p: Product) => { const c = convertSize(p.sizeSystem, p.size, p.category, p.sizeLine || ''); return c ? (['Letter', 'EU', 'FR', 'IT', 'UK', 'US', 'JP'] as const).map((r) => sizeIn(c, r)).filter(Boolean).join(' · ') + (c.assumed.length ? ' (' + c.assumed.join(', ') + ')' : '') : ''; };
   const order = (c: string) => { const i = SHOP_CATEGORIES.findIndex((x) => x.name === c); return i < 0 ? 999 : i; };
   const shopOf = (p: Product) => shopCategoryFor(p) || 'To place (category missing)';
   const rows = products.filter(keep).sort((a, b) => order(shopOf(a)) - order(shopOf(b)) || a.brand.localeCompare(b.brand) || a.name.localeCompare(b.name)).map((p) => {
     const s = copySections(p);
-    return [shopOf(p), p.status, s.vendor, s.title, s.season, s.history, s.short, s.long, s.country, s.composition, s.size, s.care, p.productCode, p.sku, shop.get(p.boutiqueId) || '', p.category, p.colour, p.condition,
+    return [shopOf(p), p.status, s.vendor, s.title, s.season, s.history, s.short, s.long, s.country, s.composition, s.size, equivalents(p), p.sizeLine || '', eraNote(p.sizeSystem, p.size, p.year, p.sizeLine || ''), s.care, p.productCode, p.sku, shop.get(p.boutiqueId) || '', p.category, p.colour, p.condition,
       p.sources.map((x) => [x.title, x.url].filter(Boolean).join(' ')).join('\n'), p.teamFacts || '', s.html, '', p.updated, p.id];
   });
   const ws = XLSX.utils.aoa_to_sheet([head, ...rows]);

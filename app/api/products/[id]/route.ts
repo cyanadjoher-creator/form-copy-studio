@@ -8,7 +8,7 @@ type Ctx = { params: Promise<{ id: string }> };
 export const dynamic = 'force-dynamic';
 export const GET = handle(async (_req: Request, { params }: Ctx) => getProduct((await params).id));
 
-const editable = ['sku','boutiqueRef','tempId','listingUrl','verifiedWear','productCode','boutiqueId','brand','name','category','colour','material','madeIn','measurements','care','season','seasonType','seasonYear','year','sizeSystem','size','condition','boutiqueDesc','notes','research','teamFacts','copy','boutiqueText','fieldSrc','conflicts','needsInfo','flags','holds'] as const;
+const editable = ['sku','boutiqueRef','tempId','listingUrl','verifiedWear','productCode','boutiqueId','brand','name','category','colour','material','madeIn','measurements','care','season','seasonType','seasonYear','year','sizeSystem','size','condition','boutiqueDesc','notes','research','teamFacts','sizeLine','copy','boutiqueText','fieldSrc','conflicts','needsInfo','flags','holds'] as const;
 export const PATCH = handle(async (req: Request, { params }: Ctx) => {
   const {id}=await params;
   const old=await getProduct(id);

@@ -16,6 +16,7 @@ export function Sidebar() {
     ['/ingestion', 'Ingestion', data ? data.products.filter((p) => !DONE.includes(p.status)).length : ''],
     ['/prompt', 'Copy prompt', data ? 'v' + (data.prompts.find((p) => p.active)?.v ?? '') : ''],
     ['/vocabulary', 'Vocabulary', ''],
+    ['/sizes', 'Sizes', ''],
   ];
   const on = (h: string) => (h === '/' ? path === '/' : path.startsWith(h));
   return (
