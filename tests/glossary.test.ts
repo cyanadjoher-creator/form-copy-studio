@@ -82,7 +82,8 @@ test('the product-page export splits the copy into the Copy Guide sections', () 
   assert.equal(s.short, 'Wool trousers.');
   assert.equal(s.long, 'Belt loops\nZip fly');
   assert.equal(s.country, 'France');
-  assert.equal(s.size, 'FR 38');
+  assert.equal(s.size, '');
+  assert.equal(s.tagged, 'FR 38');
   assert.equal(s.season, 'Fall/Winter 2005');
   assert.match(s.html, /<li>Zip fly<\/li>/);
 });
@@ -94,9 +95,12 @@ test('every piece is placed in a shop category, denim and sets first', async () 
   assert.equal(shopCategoryFor({ category: 'Bags', name: 'Indigo Denim Harness Tote' }), 'Bags');
   assert.equal(shopCategoryFor({ category: 'Tops', name: 'Pink and Green Paisley Jacket and Skirt Set' }), 'Sets');
   assert.equal(shopCategoryFor({ category: 'Jewellery', name: 'Silver K&T Emerald Ring' }), 'Rings');
-  assert.equal(shopCategoryFor({ category: 'Cardigans', name: 'Navy Hooded Cardigan' }), 'Knitwear');
-  assert.equal(shopCategoryFor({ category: 'Coats', name: 'Grey Military Shearling Coat' }), 'Outerwear');
-  assert.equal(shopCategoryFor({ category: 'Shorts', name: 'Olive Crinkled Cargo Shorts' }), 'Trousers');
+  assert.equal(shopCategoryFor({ category: 'Cardigans', name: 'Navy Hooded Cardigan' }), 'Cardigans');
+  assert.equal(shopCategoryFor({ category: 'Coats', name: 'Grey Military Shearling Coat' }), 'Coats');
+  assert.equal(shopCategoryFor({ category: 'Shorts', name: 'Olive Crinkled Cargo Shorts' }), 'Shorts');
+  const { shopLevels } = await import('../lib/glossary.ts');
+  assert.deepEqual(shopLevels('Coats'), { top: 'Outerwear', sub: 'Coats' });
+  assert.deepEqual(shopLevels('Denim', 'Skirts'), { top: 'Denim', sub: 'Skirts' });
   assert.equal(shopCategoryFor({ category: '', name: 'Mystery piece' }), '');
 });
 

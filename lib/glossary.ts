@@ -77,7 +77,7 @@ export const SECTION_ORDER = ['History', 'Short description', 'Long description'
 /* ---------- the glossary, by highlighted category ---------- */
 const houses = FROZEN_VOCAB.FASHION_HOUSE;
 export const GLOSSARY: GlossGroup[] = [
-  { key: 'shop', label: 'Shop categories', tone: 'guide', help: 'The shop structure (27 Nov): top-level categories, with Accessories and Jewellery holding subcategories. Orange: still to confirm.', terms: [] },
+  { key: 'shop', label: 'Shop categories', tone: 'guide', help: 'The shop structure (27 Nov): Tops, Outerwear, Knitwear, Trousers, Accessories and Jewellery hold subcategories; Denim and Sets take the item type.', terms: [] },
   { key: 'types', label: 'Item types', tone: 'ink', help: 'What the piece is. Shop categories follow the Copy Guide item types.', terms: merge(
     T(['guide'], 'Bag|Hat|Sunglasses|Belt|Shoes|T-shirt|Tank top|Shirt|Shorts|Jeans|Trousers|Skirt|Dress|Book|CD|Film'),
     T(['fashionpedia'], 'Blazer|Bolero jacket|Bomber jacket=flight jacket|Trench coat|Chesterfield coat|Peacoat=pea coat|Duffle coat=duffel coat|Parka|Cape|Poncho|Gilet|Waistcoat|Cardigan|Jumper=sweater,pullover|Polo shirt|Henley|Hoodie=hooded sweatshirt|Sweatshirt|Blouse|Camisole|Bodysuit|Corset|Bustier|Kaftan=caftan|Slip dress|Shirt dress|Sheath dress|Wrap dress|Babydoll dress=babydoll|Jumpsuit|Dungarees=overalls|Culottes|Palazzo trousers=palazzo pants|Cargo trousers=cargo pants|Chinos|Joggers|Leggings|Pencil skirt|A-line skirt|Wrap skirt|Kilt|Sarong|Bermuda shorts|Suit|Three-piece suit|Tuxedo jacket=dinner jacket'),
@@ -235,16 +235,19 @@ export function vocabularyBrief(category: string) {
 /* ---------- shop categories (the measurement guide sections) ---------- */
 // From the FORM measurement guide (27 Nov), regrouped into the shop structure the team set the same day.
 export type ShopCategory = { name: string; measure: string; group?: string; added?: boolean; open?: boolean; note?: string };
-// Team structure (27 Nov, Cyana). Accessories and Jewellery hold subcategories; "open" marks a category still to confirm.
+// Team structure (27 Nov, Cyana and Eric): top-level categories; Tops, Outerwear, Knitwear, Trousers, Accessories and Jewellery hold subcategories.
+const T_C = 'C Chest x S Sleeve x L Length';
 export const SHOP_CATEGORIES: ShopCategory[] = [
-  { name: 'Tops', measure: 'C Chest x S Sleeve x L Length' },
-  { name: 'Outerwear', measure: 'C Chest x S Sleeve x L Length' },
-  { name: 'Knitwear', measure: 'C Chest x S Sleeve x L Length' },
-  { name: 'Denim', measure: 'By item type (Trousers, Skirts, Tops, Outerwear)', note: 'Takes every denim garment, whatever its type.' },
-  { name: 'Trousers', measure: 'W Waist x R Front rise x I Inseam', note: 'Includes shorts. Named Bottoms in the measurement guide.' },
+  { name: 'T-shirts', group: 'Tops', measure: T_C }, { name: 'Tank tops', group: 'Tops', measure: T_C }, { name: 'Shirts', group: 'Tops', measure: T_C },
+  { name: 'Blouses', group: 'Tops', measure: T_C }, { name: 'Sweatshirts + hoodies', group: 'Tops', measure: T_C }, { name: 'Other tops', group: 'Tops', measure: T_C, note: 'Corset tops, bodies, mesh tops.' },
+  { name: 'Coats', group: 'Outerwear', measure: T_C, note: 'Includes trench coats and parkas.' }, { name: 'Jackets', group: 'Outerwear', measure: T_C, note: 'Includes bombers and biker jackets.' },
+  { name: 'Blazers', group: 'Outerwear', measure: T_C }, { name: 'Gilets + waistcoats', group: 'Outerwear', measure: T_C },
+  { name: 'Jumpers', group: 'Knitwear', measure: T_C, note: 'Sweaters.' }, { name: 'Cardigans', group: 'Knitwear', measure: T_C }, { name: 'Other knitwear', group: 'Knitwear', measure: T_C, note: 'Twinsets, knit tops.' },
+  { name: 'Denim', measure: 'By item type (Trousers, Skirts, Tops, Outerwear)', note: 'Takes every denim garment, whatever its type; the item type is its subcategory.' },
+  { name: 'Trousers', group: 'Trousers', measure: 'W Waist x R Front rise x I Inseam' }, { name: 'Shorts', group: 'Trousers', measure: 'W Waist x R Front rise x I Inseam' },
   { name: 'Skirts', measure: 'W Waist x B Hem width x L Length' },
   { name: 'Dresses', measure: 'C Chest x W Waist x L Length' },
-  { name: 'Jumpsuits', measure: 'C Chest x I Inseam x L Length', open: true, note: 'To confirm: not needed for now.' },
+  { name: 'Jumpsuits', measure: 'C Chest x I Inseam x L Length', note: 'Kept for scale, few pieces for now.' },
   { name: 'Sets', measure: 'Each piece by its own type' },
   { name: 'Lingerie', measure: 'C Chest x W Waist x L Length' },
   { name: 'Swimwear', measure: 'C Chest x W Waist x L Length' },
@@ -265,18 +268,25 @@ export const SHOP_CATEGORIES: ShopCategory[] = [
   { name: 'Brooches', group: 'Jewellery', measure: 'H Height x W Width' },
   { name: 'Books + ephemera', measure: 'H Height x W Width x D Depth' },
 ];
+export const SHOP_TOP_LEVEL = [...new Set(SHOP_CATEGORIES.map((c) => c.group || c.name))];
 /** The top-level shop category ("Accessories", "Jewellery" or the category itself) and the subcategory, if any. */
-export function shopLevels(name: string) { const c = SHOP_CATEGORIES.find((x) => x.name === name); return { top: c?.group || name, sub: c?.group ? name : '' }; }
-GLOSSARY.find((g) => g.key === 'shop')!.terms.push(...SHOP_CATEGORIES.map((c): GlossTerm => ({ t: c.name, src: [c.open ? 'studio' : 'guide'], aka: [(c.group ? c.group + ' · ' : '') + c.measure + (c.open ? ' · to confirm' : '')] })));
+export function shopLevels(name: string, category = '') {
+  const c = SHOP_CATEGORIES.find((x) => x.name === name);
+  if (c?.group) return { top: c.group, sub: c.group === c.name ? '' : name };
+  // Denim and Sets take the item type as their subcategory.
+  return { top: name, sub: ['Denim', 'Sets'].includes(name) && category && category !== name ? category : '' };
+}
+GLOSSARY.find((g) => g.key === 'shop')!.terms.push(...SHOP_CATEGORIES.map((c): GlossTerm => ({ t: c.name, src: [c.open ? 'studio' : 'guide'], aka: [(c.group && c.group !== c.name ? c.group + ' · ' : '') + c.measure + (c.open ? ' · to confirm' : '')] })));
 const SHOP_BY_CATEGORY: Record<string, string> = {
-  Blouses: 'Tops', 'Hoodies & Sweatshirts': 'Tops', Shirts: 'Tops', 'T-shirts': 'Tops', 'Tank tops': 'Tops', Tops: 'Tops',
-  Blazers: 'Outerwear', Coats: 'Outerwear', Jackets: 'Outerwear', Waistcoats: 'Outerwear',
-  Cardigans: 'Knitwear', Jumpers: 'Knitwear', Knitwear: 'Knitwear', Jeans: 'Denim', Trousers: 'Trousers', Shorts: 'Trousers', Skirts: 'Skirts', Dresses: 'Dresses', Jumpsuits: 'Jumpsuits',
+  'T-shirts': 'T-shirts', 'Tank tops': 'Tank tops', Shirts: 'Shirts', Blouses: 'Blouses', 'Hoodies & Sweatshirts': 'Sweatshirts + hoodies', Tops: 'Other tops',
+  Coats: 'Coats', Jackets: 'Jackets', Blazers: 'Blazers', Waistcoats: 'Gilets + waistcoats',
+  Jumpers: 'Jumpers', Cardigans: 'Cardigans', Knitwear: 'Other knitwear', Jeans: 'Denim', Trousers: 'Trousers', Shorts: 'Shorts', Skirts: 'Skirts', Dresses: 'Dresses', Jumpsuits: 'Jumpsuits',
   Sets: 'Sets', Suits: 'Sets', Lingerie: 'Lingerie', Swimwear: 'Swimwear', Shoes: 'Footwear', Boots: 'Footwear', Bags: 'Bags', 'Small leather goods': 'Leather goods',
   Belts: 'Belts', Scarves: 'Scarves', Gloves: 'Gloves', Hats: 'Hats', Sunglasses: 'Eyewear', Eyewear: 'Eyewear', Watches: 'Watches',
   Bracelets: 'Bracelets', Cuffs: 'Cuffs', Rings: 'Rings', Earrings: 'Earrings', Necklaces: 'Necklaces', Books: 'Books + ephemera', 'CDs & Films': 'Books + ephemera',
 };
-const GARMENT_SHOP = ['Tops', 'Outerwear', 'Knitwear', 'Trousers', 'Skirts', 'Dresses', 'Jumpsuits', 'Sets'];
+const GARMENT_TOPS = ['Tops', 'Outerwear', 'Knitwear', 'Trousers', 'Skirts', 'Dresses', 'Jumpsuits', 'Sets'];
+const isGarment = (leaf: string) => GARMENT_TOPS.includes(shopLevels(leaf).top);
 /** The shop category a piece is listed under. Empty when it cannot be placed: the export flags it. */
 export function shopCategoryFor(p: { category: string; name: string; material?: string }): string {
   const name = String(p.name || '').toLowerCase();
@@ -285,9 +295,9 @@ export function shopCategoryFor(p: { category: string; name: string; material?: 
     shop = /\bring\b/.test(name) ? 'Rings' : /\b(bracelet|bangle)\b/.test(name) ? 'Bracelets' : /\bcuff\b/.test(name) ? 'Cuffs' : /\bearrings?\b/.test(name) ? 'Earrings'
       : /\b(necklace|pendant|choker)\b/.test(name) ? 'Necklaces' : 'Brooches';
   }
-  if (/\b(jumpsuit|overalls|dungarees|boilersuit|catsuit)\b/.test(name) && (!shop || GARMENT_SHOP.includes(shop))) shop = 'Jumpsuits';
-  else if (/\b(set|twinset|two-piece|suit)\b/.test(name) && (!shop || GARMENT_SHOP.includes(shop))) shop = 'Sets';
+  if (/\b(jumpsuit|overalls|dungarees|boilersuit|catsuit)\b/.test(name) && (!shop || isGarment(shop))) shop = 'Jumpsuits';
+  else if (/\b(set|twinset|two-piece|suit)\b/.test(name) && (!shop || isGarment(shop))) shop = 'Sets';
   const denim = /\bdenim\b(?![- ]print)/.test(name) || /\bdenim\b/i.test(p.material || '');
-  if (denim && (!shop || GARMENT_SHOP.includes(shop))) shop = 'Denim';
+  if (denim && (!shop || isGarment(shop))) shop = 'Denim';
   return shop;
 }

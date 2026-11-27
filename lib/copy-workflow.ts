@@ -201,8 +201,10 @@ export function copySections(p: Product) {
   const measure=p.measurements?sizeInches(p.measurements,p.category):{text:'',conflict:false};
   const last=bullets.at(-1)||'';
   const sizeLine=(measure.text && last===measure.text) || /\d(?:\.\d+)?(?:-\d+(?:\.\d+)?)?\s*(?:in|cm)$/.test(last) && /\d\s*x\s*\S/i.test(last) ? bullets.pop()! : '';
-  const size=[[p.sizeSystem,p.size].filter(Boolean).join(' '),sizeLine].filter(Boolean).join(' · ');
+  // The tagged size is a filter (Shopify metafield), not part of the description: only the measurements are.
+  const size=sizeLine;
+  const tagged=[p.sizeSystem,p.size].filter(Boolean).join(' ');
   const esc=(s: string)=>s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
   const html=[history&&`<p>${esc(history)}</p>`,short&&`<p>${esc(short)}</p>`,(bullets.length||sizeLine)?'<ul>'+[...bullets,...(sizeLine?[sizeLine]:[])].map(b=>`<li>${esc(b)}</li>`).join('')+'</ul>':'',country&&`<p>${esc(country)}</p>`].filter(Boolean).join('');
-  return {vendor:sh.vendor,title:sh.title,season:sh.season_or_era,history,short,long:bullets.join('\n'),country:country.replace(/^made in\s+/i,'').replace(/\.$/,''),composition:p.material||'',size,care:sh.care,html};
+  return {vendor:sh.vendor,title:sh.title,season:sh.season_or_era,history,short,long:bullets.join('\n'),tagged,country:country.replace(/^made in\s+/i,'').replace(/\.$/,''),composition:p.material||'',size,care:sh.care,html};
 }
