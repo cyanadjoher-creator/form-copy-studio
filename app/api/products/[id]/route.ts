@@ -2,26 +2,27 @@ import { handle, HttpError } from '@/lib/http';
 import { DONE, STAGES, now, type Product, CONTEXT_MISSING } from '@/lib/domain';
 import { deleteProduct, getProduct, saveProduct } from '@/lib/repo';
 import { deletePhotoFile } from '@/lib/storage';
-import { approveIssues, copyControl, reopenApproval } from '@/lib/copy-workflow';
+import { approvalCheck, copyControl, reopenApproval, settleOnApproval } from '@/lib/copy-workflow';
 
 type Ctx = { params: Promise<{ id: string }> };
 export const dynamic = 'force-dynamic';
 export const GET = handle(async (_req: Request, { params }: Ctx) => getProduct((await params).id));
 
-const editable = ['sku','boutiqueRef','tempId','listingUrl','verifiedWear','productCode','boutiqueId','brand','name','category','colour','material','madeIn','measurements','care','season','seasonType','seasonYear','year','sizeSystem','size','condition','boutiqueDesc','notes','research','copy','boutiqueText','fieldSrc','conflicts','needsInfo','flags','holds'] as const;
+const editable = ['sku','boutiqueRef','tempId','listingUrl','verifiedWear','productCode','boutiqueId','brand','name','category','colour','material','madeIn','measurements','care','season','seasonType','seasonYear','year','sizeSystem','size','condition','boutiqueDesc','notes','research','teamFacts','copy','boutiqueText','fieldSrc','conflicts','needsInfo','flags','holds'] as const;
 export const PATCH = handle(async (req: Request, { params }: Ctx) => {
   const {id}=await params;
   const old=await getProduct(id);
-  const body=(await req.json()) as {patch?:Partial<Product>; note?:string; revision?:string; review?:'accept-history'|'omit-history'|'confirm-photos'};
+  const body=(await req.json()) as {patch?:Partial<Product>; note?:string; revision?:string; review?:'accept-history'|'omit-history'|'confirm-photos'; acknowledge?:boolean};
   if (body.revision !== undefined && body.revision!==old.revision) throw new HttpError(409,'The item changed. Reload before saving.');
   const next=structuredClone(old);
   const patch=body.patch || {};
   const changed=editable.filter(k=>Object.hasOwn(patch,k) && JSON.stringify(patch[k])!==JSON.stringify(old[k]));
   if (patch.status && !STAGES.includes(patch.status)) throw new HttpError(400,'Invalid status.');
-  const materialChange=changed.some(k=>!['needsInfo','flags'].includes(k));
+  const materialChange=changed.some(k=>!['needsInfo','flags','teamFacts'].includes(k));
   if (patch.status && DONE.includes(patch.status) && materialChange) throw new HttpError(409,'Save and review the new version before approving it.');
   if (materialChange) reopenApproval(next,'Item or copy changed; prior approval retained');
   for (const k of changed) (next as unknown as Record<string,unknown>)[k]=patch[k];
+  if (changed.includes('teamFacts')) next.history.push({t:now(),s:next.status,n:'Team facts updated: '+String(next.teamFacts||'').slice(0,240)});
   const identity=changed.some(k=>['sku','boutiqueRef','tempId','listingUrl','verifiedWear','boutiqueId','brand','name','category','season','seasonYear'].includes(k));
   if (identity) {
     next.sources=[]; next.historyRow=null;
@@ -49,9 +50,14 @@ export const PATCH = handle(async (req: Request, { params }: Ctx) => {
   }
   if (patch.status && patch.status!==next.status) {
     if (patch.status==='In Shopify' && next.status!=='Approved') throw new HttpError(409,'Approve before marking as in Shopify.');
-    if (DONE.includes(patch.status)) {
-      const issues=approveIssues(next);
-      if (issues.length) throw new HttpError(409,'Before approving · '+issues.join(' · '));
+    if (DONE.includes(patch.status) && next.status!=='Approved') {
+      const first=approvalCheck(next);
+      if (first.hard.length) throw new HttpError(409,'Before approving · '+[...first.hard,...first.soft].join(' · '));
+      if (first.soft.length && !body.acknowledge) throw new HttpError(409,'Before approving · '+first.soft.join(' · '));
+      const decisions=first.soft.length?settleOnApproval(next):[];
+      const again=approvalCheck(next);
+      if (again.hard.length) throw new HttpError(409,'Before approving · '+again.hard.join(' · '));
+      if (first.soft.length) next.history.push({t:now(),s:next.status,n:'Approved with open checks: '+first.soft.join(' · ')+(decisions.length?' ('+decisions.join(', ')+')':'')});
     }
     next.status=patch.status;
     next.history.push({t:now(),s:next.status,n:body.note||''});

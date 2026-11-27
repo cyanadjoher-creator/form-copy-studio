@@ -184,3 +184,21 @@ ul.src a{color:var(--ink)}
 .banner{background:var(--warn-bg);border-left:2px solid var(--warn);padding:9px 12px;font-size:12.5px;margin-bottom:16px}
 .busy{opacity:.55;pointer-events:none}
 .login{max-width:360px;margin:18vh auto;padding:0 20px}
+.flag.vocabnote{background:var(--soft);border-left-color:var(--ink,#111)}
+/* FORM glossary: highlighted categories */
+.gloss-groups{display:flex;flex-wrap:wrap;gap:6px;margin:4px 0 14px}
+.gloss-groups a{cursor:pointer;padding:5px 10px;font-size:12px;border:1px solid var(--rule-2);text-decoration:none}
+.gloss-groups a.on{background:#111;color:#fff;border-color:#111}
+.gloss-group{border-left:4px solid #999;padding:6px 0 10px 14px;margin:14px 0}
+.gloss-group h3{margin:0 0 2px;display:flex;gap:10px;align-items:baseline}
+.gloss-group.tone-freeze{border-left-color:#1f4fd1}
+.gloss-group.tone-guide{border-left-color:#0f7b4b}
+.gloss-group.tone-detail{border-left-color:#8a5a00}
+.gloss-group.tone-material{border-left-color:#7a2f8f}
+.gloss-group.tone-ink{border-left-color:#111}
+.gterm{display:inline-flex;gap:6px;align-items:baseline;margin:3px 4px 3px 0;padding:3px 8px;border:1px solid var(--rule-2);font-size:12.5px}
+.gterm .aka{color:#777;font-size:11px}
+.gterm.studio{border-color:#e07b00;color:#a35400}
+.src-dot{display:inline-block;width:7px;height:7px;border-radius:50%;margin-right:2px}
+.src-freeze{background:#1f4fd1}.src-guide{background:#0f7b4b}.src-prompt{background:#2a9d8f}.src-fashionpedia{background:#8a5a00}.src-sewing{background:#b5651d}.src-studio{background:#e07b00}
+.gloss-legend{display:flex;flex-wrap:wrap;gap:14px;font-size:12px;margin:6px 0 4px}

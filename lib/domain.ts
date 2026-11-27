@@ -1,4 +1,5 @@
 import HISTORY_REF from './history-reference.json' with { type: 'json' };
+import { FIELD_ALIASES, FROZEN_FIELD_LISTS, GLOSSARY, frozenTerm, vocabularyBrief } from './glossary.ts';
 // Shared, pure logic used by both the browser and the server.
 // No I/O here: everything is deterministic so it can be tested.
 
@@ -31,6 +32,8 @@ export type Product = {
   seasonRaw: string; season: string; seasonType: string; seasonYear: string; year: number | null;
   sizeSystem: string; size: string; condition: string; price: string;
   boutiqueDesc: string; notes: string; research: string; sources: Source[];
+  /** Facts the FORM team adds by hand (e.g. "made during Jean Paul Gaultier's time at Hermès"). Kept on the piece, logged, and used as trusted input by research and every new draft. */
+  teamFacts?: string;
   status: Stage; needsInfo: boolean; copy: string; boutiqueText: string; flags: string[];
   /** Checks held until confirmed (e.g. fibre on a blurry label). They survive regeneration and are cleared by hand. */
   holds: string[];
@@ -79,7 +82,8 @@ export function normSeason(raw: string | undefined | null) {
   let type = 'Unknown';
   if (/pre[\s-]?fall/i.test(s)) type = 'Pre-Fall';
   else if (/cruise|resort|pre[\s-]?spring/i.test(s)) type = 'Cruise / Resort';
-  else if (/couture|artisanal/i.test(s)) type = 'Couture';
+  else if (/artisanal/i.test(s)) type = 'Artisanal';
+  else if (/couture/i.test(s)) type = 'Couture';
   else if (/capsule/i.test(s)) type = 'Capsule';
   else if (/commercial/i.test(s)) type = 'Commercial Look';
   else if (/(^|[^a-z])(fw|aw|f\/w|a\/w|fall|autumn|winter|ah)/i.test(s)) type = 'Fall/Winter';
@@ -114,21 +118,21 @@ export const hasRole = (p: Product, role: string) => (p.photos || []).some((x) =
 export const DEFAULT_VOCAB: Vocab = {
   brands: ['ALEXANDER MCQUEEN', 'ANN DEMEULEMEESTER', 'BALENCIAGA', 'CÉLINE', 'CHRISTIAN DIOR', 'COMME DES GARÇONS', 'DIRK BIKKEMBERGS', 'DOLCE & GABBANA', 'GUCCI', 'JEAN PAUL GAULTIER', 'JOHN GALLIANO', 'JUN TAKAHASHI', 'MAISON MARTIN MARGIELA', 'RAF SIMONS', 'RICK OWENS', 'ROBERTO CAVALLI', 'YVES SAINT LAURENT'],
   archiveBrands: ['ALEXANDER MCQUEEN', 'COMME DES GARÇONS', 'JOHN GALLIANO', 'JUN TAKAHASHI', 'MAISON MARTIN MARGIELA', 'RAF SIMONS', 'RICK OWENS'],
-  seasonTypes: ['Spring/Summer', 'Fall/Winter', 'Pre-Fall', 'Cruise / Resort', 'Couture', 'Capsule', 'Commercial Look', 'Decade', 'Unknown'],
-  categories: ['Bags', 'Belts', 'Blazers', 'Blouses', 'Boots', 'Cardigans', 'Coats', 'Dresses', 'Gloves', 'Hats', 'Hoodies & Sweatshirts', 'Jackets', 'Jeans', 'Jewellery', 'Jumpers', 'Knitwear', 'Lingerie', 'Scarves', 'Sets', 'Shirts', 'Shoes', 'Shorts', 'Skirts', 'Small leather goods', 'Suits', 'Swimwear', 'T-shirts', 'Tank tops', 'Tops', 'Trousers', 'Waistcoats'],
-  colours: ['Beige', 'Black', 'Blue', 'Brown', 'Burgundy', 'Camel', 'Charcoal', 'Cream', 'Gold', 'Green', 'Grey', 'Ivory', 'Khaki', 'Multicolour', 'Navy', 'Olive', 'Orange', 'Pink', 'Purple', 'Red', 'Silver', 'Taupe', 'White', 'Yellow'],
-  materials: ['Calfskin', 'Cashmere', 'Cotton', 'Cotton jersey', 'Denim', 'Fur', 'Lambskin', 'Leather', 'Linen', 'Mesh', 'Modal jersey', 'Mohair', 'Nylon', 'Polyester', 'Satin', 'Shearling', 'Silk', 'Suede', 'Tweed', 'Viscose', 'Wool', 'Wool and silk', 'Wool-blend'],
-  conditions: ['New with tags', 'Unworn', 'Excellent', 'Very good', 'Good', 'Fair', 'As is'],
+  seasonTypes: FROZEN_FIELD_LISTS.seasonTypes,
+  categories: ['Bags', 'Belts', 'Blazers', 'Blouses', 'Boots', 'Cardigans', 'Coats', 'Dresses', 'Gloves', 'Hats', 'Hoodies & Sweatshirts', 'Jackets', 'Jeans', 'Jewellery', 'Jumpers', 'Knitwear', 'Lingerie', 'Scarves', 'Sets', 'Shirts', 'Shoes', 'Shorts', 'Skirts', 'Small leather goods', 'Suits', 'Swimwear', 'Sunglasses', 'T-shirts', 'Tank tops', 'Tops', 'Trousers', 'Waistcoats', 'Books', 'CDs & Films'],
+  colours: FROZEN_FIELD_LISTS.colours,
+  materials: GLOSSARY.find((g) => g.key === 'materials')!.terms.map((t) => t.t).sort((a, b) => a.localeCompare(b)),
+  conditions: FROZEN_FIELD_LISTS.conditions,
   sizes: { IT: ['36', '38', '40', '42', '44', '46', '48', '50', '52', '54'], FR: ['32', '34', '36', '38', '40', '42', '44', '46', '48'], UK: ['4', '6', '8', '10', '12', '14', '16', '18'], US: ['0', '2', '4', '6', '8', '10', '12', '14'], JP: ['0', '1', '2', '3', '4', '5'], Letter: ['XXS', 'XS', 'S', 'M', 'L', 'XL', 'XXL'], 'Shoes EU': ['35', '36', '37', '38', '39', '40', '41', '42', '43', '44', '45', '46'], 'One size': ['One size'] },
 };
 export const VOCAB_LISTS: { key: keyof Vocab; label: string; field: keyof Product | null; help: string; ordered?: boolean }[] = [
-  { key: 'brands', label: 'Brands', field: 'brand', help: 'To connect: the FORM ontology Brand Master, then the Shopify vendor list.' },
+  { key: 'brands', label: 'Brands', field: 'brand', help: 'The frozen fashion houses (4 Nov), in capitals as Shopify vendors, plus any vendor added here.' },
   { key: 'archiveBrands', label: 'Brands in the archive', field: 'brand', help: 'Houses already recorded in the FORM archive. The Overview uses this list to show what the stock matches and which brands are missing.' },
   { key: 'categories', label: 'Categories', field: 'category', help: '' },
-  { key: 'colours', label: 'Colours', field: 'colour', help: '' },
-  { key: 'materials', label: 'Materials', field: 'material', help: '' },
-  { key: 'conditions', label: 'Conditions', field: 'condition', help: 'Kept in grading order, best to worst.', ordered: true },
-  { key: 'seasonTypes', label: 'Season types', field: 'seasonType', help: 'The ontology season vocabulary, kept in this order. Decade is for pieces dated only by era.', ordered: true },
+  { key: 'colours', label: 'Colours', field: 'colour', help: 'The 17 frozen colours (4 Nov). A shade (navy, ecru, burgundy) matches its frozen colour on import; the shade can still be written in the copy.', ordered: true },
+  { key: 'materials', label: 'Materials', field: 'material', help: 'Fibre and fabric names from Fashionpedia, plus the studio leathers. Not in the freeze: proposed for validation.' },
+  { key: 'conditions', label: 'Conditions', field: 'condition', help: 'The frozen grades, best to worst. New with tags and Unworn match Pristine; Very good has to be placed by a person.', ordered: true },
+  { key: 'seasonTypes', label: 'Season types', field: 'seasonType', help: 'The frozen season vocabulary, in this order. Decade is a studio addition for pieces dated only by era (not in the freeze).', ordered: true },
   { key: 'sizes', label: 'Sizes', field: null, help: 'One list per size system, in size order.' },
 ];
 
@@ -225,6 +229,17 @@ export const normV = (s: unknown) => String(s || '').toLowerCase().replace(/[^a-
 export const isEmptyField = (p: Product, k: string) =>
   k === 'season' ? !p.seasonYear && (!p.seasonType || p.seasonType === 'Unknown')
     : !String((p as unknown as Record<string, unknown>)[k] || '').trim() || (k === 'brand' && p.brand === 'UNKNOWN');
+/** A field value in FORM wording: the list term, or the frozen term a safe alias points to. Ambiguous aliases are left as typed and reported. */
+export function toFrozen(key: 'colours' | 'conditions' | 'seasonTypes' | 'brands', list: string[], v: string): { value: string; choose: string[] } {
+  if (!v) return { value: v, choose: [] };
+  const f = frozenTerm(key, v);
+  const inList = (t: string) => (list || []).find((x) => normV(x) === normV(t));
+  if (f.how === 'exact' || f.how === 'alias') return { value: inList(f.term) || (key === 'brands' ? f.term.toUpperCase() : f.term), choose: [] };
+  if (f.how === 'choose' && f.choices.length === 1) return { value: inList(f.choices[0]) || f.choices[0], choose: [] };
+  if (f.how === 'choose') return { value: canon(list, v), choose: f.choices };
+  return { value: canon(list, v), choose: [] };
+}
+export const ALIAS_WORDS = (key: keyof typeof FIELD_ALIASES) => Object.keys(FIELD_ALIASES[key]);
 export function canon(list: string[], v: string) { if (!v) return v; const n = normV(v); return (list || []).find((x) => normV(x) === n) || v; }
 function findTerms(text: string, terms: string[]) {
   let rest = ' ' + String(text || '').toLowerCase() + ' ';
@@ -248,12 +263,12 @@ export function parseBoutiqueText(p: Product, vocab: Vocab) {
   one('brand', 'brands', findTerms(p.name, vocab.brands).map((x) => x.toUpperCase()), findTerms(desc, vocab.brands).map((x) => x.toUpperCase()));
   const cat = (txt: string) => { const t = String(txt || '').toLowerCase(); for (const [w, c] of CAT_WORDS) if (wordRe(w).test(t)) return [c]; return []; };
   one('category', 'categories', cat(p.name), cat(first));
-  const colourTerms = [...vocab.colours, ...Object.keys(COLOUR_SYN)];
-  const col = (txt: string) => findTerms(txt, colourTerms).map((x) => COLOUR_SYN[x.toLowerCase()] || canon(vocab.colours, x));
+  const colourTerms = [...vocab.colours, ...Object.keys(COLOUR_SYN), ...ALIAS_WORDS('colours')];
+  const col = (txt: string) => findTerms(txt, colourTerms).map((x) => COLOUR_SYN[x.toLowerCase()] || toFrozen('colours', vocab.colours, x).value);
   one('colour', 'colours', col(p.name), col(first));
   const mat = (txt: string) => findTerms(txt, vocab.materials).map((x) => canon(vocab.materials, x));
   one('material', 'materials', mat(p.name), mat(desc));
-  one('condition', 'conditions', [], findTerms(desc, vocab.conditions).map((x) => canon(vocab.conditions, x)));
+  one('condition', 'conditions', [], findTerms(desc, [...vocab.conditions, ...ALIAS_WORDS('conditions').filter((w) => w.length > 4)]).map((x) => toFrozen('conditions', vocab.conditions, x)).filter((x) => !x.choose.length).map((x) => x.value));
   const sz = desc.match(/\b(?:size|taille|sz)\s*:?\s*(IT|FR|UK|US|JP)?\s*(\d{1,2}(?:\.5)?|XXS|XS|S|M|L|XL|XXL)\b/i);
   let sizeSystem = '';
   if (sz) { vals.size = sz[2].toUpperCase(); if (sz[1]) sizeSystem = sz[1].toUpperCase(); }
@@ -325,7 +340,7 @@ export function readiness(p: Product) {
 }
 
 /* ---------- house style check ---------- */
-const SEASON_LINE = /^((Spring\/Summer|Fall\/Winter|Pre-Fall|Cruise \/ Resort|Couture|Capsule) \d{4}|\d{4}s)$/;
+const SEASON_LINE = /^((Spring\/Summer|Fall\/Winter|Pre-Fall|Cruise \/ Resort|Couture|Artisanal|Capsule|Commercial Look) \d{4}|\d{4}s)$/;
 export function lint(p: Product) {
   const t = (p.copy || '') + '\n' + (p.boutiqueText || '');
   const out: { ok: boolean; label: string }[] = [];
@@ -387,7 +402,7 @@ export function detailsBlock(p: Product) {
     `Colour: ${p.colour}`, `Material: ${p.material}`, `Size: ${[p.sizeSystem, p.size].filter(Boolean).join(' ')}`, `Condition: ${p.condition}`,
     `Made in (confirmed): ${p.madeIn || 'NOT CONFIRMED - do not write a Made in line unless a label photo shows it'}`,
     `Measurements: ${p.measurements || 'none'}`, `Product code on file: ${p.productCode || 'none'}`, ...((p.holds || []).length ? [`Not confirmed yet, do not state these and repeat them in flags: ${p.holds.join(' | ')}`] : []), `Care on file: ${p.care || 'none'}`,
-    `Boutique description: ${p.boutiqueDesc || 'none'}`, `Item notes: ${p.notes.split(/\n?^FORM (?:title|description) draft:/im)[0] || 'none'}`, `Research leads from the team: ${p.research || 'none'}`,
+    `Boutique description: ${p.boutiqueDesc || 'none'}`, `Item notes: ${p.notes.split(/\n?^FORM (?:title|description) draft:/im)[0] || 'none'}`, `Research leads from the team: ${p.research || 'none'}`, `Team facts (added by the FORM team, use them as confirmed): ${p.teamFacts || 'none'}`,
   ].join('\n');
 }
 export function buildInput(p: Product, prompt: { text: string; rules: string }, vocab: Vocab, opts: { fieldsOnly?: boolean; webSearch?: boolean; context?: import('./context.ts').ContextResult } = {}) {
@@ -404,7 +419,8 @@ export function buildInput(p: Product, prompt: { text: string; rules: string }, 
     'PHOTOS\n' + (roles || 'No photos attached.'),
     'Before describing anything, check if images show different items. If mixed, return photo_set_status "conflict", identify photo numbers in flags, and leave fields and copy sections empty. No image by itself verifies a season.',
     'Read product code only from a legible brand label, fibre and care only from the legible care label, and measurements only from legible labelled scales in Measurements photos. Preserve original units. If unclear, flag and leave blank. Do not repeat held fields in the title, material or boutique text. Do not convert a label size.',
-    'Allowed categories: ' + vocab.categories.join(', ') + '\nAllowed size systems: ' + Object.keys(vocab.sizes).join(', '),
+    'Allowed categories: ' + vocab.categories.join(', ') + '\nAllowed size systems: ' + Object.keys(vocab.sizes).join(', ') + '\nAllowed colours (frozen): ' + vocab.colours.join(', ') + '\nAllowed conditions (frozen): ' + vocab.conditions.join(', '),
+    opts.fieldsOnly ? '' : vocabularyBrief(p.category),
     opts.fieldsOnly ? 'Do not write any copy: report fields, flags and photo_set_status only.' : [
       'EXACT HISTORY CONTEXT (used by the app, not rewritten by the model)\n'+context,
       (!r && opts.webSearch) ? `There is no FORM research row for this piece, so research its history now with web search before writing anything. Search at least: the house and the season the boutique gave (for example "${[p.brand, p.season || p.seasonRaw].filter(Boolean).join(' ')} collection review"), then the designer with the garment's distinctive feature, then any print wording or label text. Use the boutique description as leads to search, not as proof. Write history_paragraph by the History rules above only from what the pages you found establish, and list in sources every page you used, with its exact URL, what it supports, and evidence_role "collection" or "item". Never imply this physical item was worn on the runway. If the search finds nothing usable but the boutique description makes a specific historical claim, put a short neutral paragraph restating only that claim in history_from_boutique (it will be checked by a person); otherwise leave both empty.` : 'Do not invent or rewrite history. The app assembles this from matched evidence.',

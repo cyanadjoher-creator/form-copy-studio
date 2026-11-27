@@ -8,7 +8,7 @@ import {
   DONE, FIELD_LABEL, MAX_PHOTOS, PHOTO_ROLES, REQUIRED, ROLE_CARE, ROLE_LABEL, blankProduct, hasRole, isEmptyField, lint, normSeason,
   readiness, refMatch, refNear, seasonCompose, titleCase, type Product, type Ref, type Stage, type Vocab } from '@/lib/domain';
 
-import { approveIssues, copyControl, copyForShopify } from '@/lib/copy-workflow';
+import { approvalCheck, copyControl, copyForShopify } from '@/lib/copy-workflow';
 const titleCaseShop = (s: string) => s.replace(/\b\w/g, (c) => c.toUpperCase());
 
 const EDIT_KEYS: (keyof Product)[] = ['sku', 'tempId', 'listingUrl', 'verifiedWear', 'boutiqueRef', 'productCode', 'boutiqueId', 'brand', 'name', 'category', 'colour', 'material', 'madeIn', 'measurements', 'care', 'season', 'seasonType', 'seasonYear', 'year', 'sizeSystem', 'size', 'condition', 'boutiqueDesc', 'notes', 'research', 'copy', 'boutiqueText', 'fieldSrc', 'conflicts', 'needsInfo', 'flags', 'holds'];
@@ -130,10 +130,10 @@ export function Ingestion({ id, brand }: { id?: string; brand?: string }) {
       toast(r.filled.length ? 'Filled from the boutique text: ' + r.filled.map((k) => FIELD_LABEL[k]).join(', ') : 'Nothing new to fill: see the conflicts and notes');
     });
   }
-  async function setStatus(s: Stage) {
+  async function setStatus(s: Stage, acknowledge = false) {
     await action('status', async () => {
       const cur = await persist();
-      const np = await api<Product>('/api/products/' + cur.id, { method: 'PATCH', body: { patch: { status: s }, revision:cur.revision } });
+      const np = await api<Product>('/api/products/' + cur.id, { method: 'PATCH', body: { patch: { status: s }, revision:cur.revision, acknowledge } });
       take(np); toast(s);
       if (s === 'Approved') { const next = queueList.find((x) => x.id !== np.id && !DONE.includes(x.status)); if (next) router.push('/ingestion/' + next.id); }
     });
@@ -158,6 +158,7 @@ export function Ingestion({ id, brand }: { id?: string; brand?: string }) {
 
   if (!data) return null;
   const v = data.vocab;
+  const ac = approvalCheck(p);
   const r = readiness(p);
   const checks = lint(p);
   const idx = queueList.findIndex((x) => x.id === p.id);
@@ -273,8 +274,11 @@ export function Ingestion({ id, brand }: { id?: string; brand?: string }) {
                 {!!c.sources.length && <ul className="src" style={{ margin: '6px 0' }}>{c.sources.map((s, i) => <li key={(s.url || s.title) + i}>{s.url ? <a href={s.url} target="_blank" rel="noreferrer"><b>{s.title}</b> ↗</a> : <b>{s.title}</b>}{s.supports && <><br /><span className="muted small">{s.supports}</span></>}</li>)}</ul>}
                 {!!c.findings.length && <><span className="small muted">What the searches turned up:</span><ul className="small" style={{ margin: '4px 0 0', paddingLeft: 18 }}>{c.findings.map((f, i) => <li key={i}>{f}</li>)}</ul></>}
                 {c.note && <p className="small muted" style={{ margin: '6px 0 0' }}>{c.note}</p>}
-                <p className="small muted" style={{ margin: '6px 0 0' }}>Regenerate copy to put this into the draft; you then Accept or Omit it before approval. To steer it, add leads (look number, collection name, a link) in Research leads and research again.</p>
+                <p className="small muted" style={{ margin: '6px 0 0' }}>Generate copy puts this into the draft as a proposal: edit it in the copy, accept it, or omit it. To steer it, add a team fact or a lead (look number, collection name, a link) and research again.</p>
               </>}
+              <label className="f" style={{ marginTop: 10 }}>Team facts <span>what the team knows; used as confirmed input by Research and Generate</span></label>
+              <textarea rows={2} value={p.teamFacts || ''} onChange={(e) => edit('teamFacts', e.target.value)} placeholder="e.g. Made during Jean Paul Gaultier's time at Hermès (2004-2011). Source: Cyana, label check." />
+              <p className="small muted" style={{ margin: '4px 0 0' }}>Saved on this piece and logged in its History below. It does not reopen an approval; it shapes the next research and draft.</p>
             </div>; })()}
           <div className="row between" style={{ marginTop: 14 }}><label className="f" style={{ margin: 0 }}>Original boutique description</label><button className="btn sm ghost" onClick={readText}>Read into empty fields</button></div>
           <textarea rows={3} style={{ marginTop: 6 }} value={p.boutiqueDesc} onChange={(e) => edit('boutiqueDesc', e.target.value)} />
@@ -292,9 +296,15 @@ export function Ingestion({ id, brand }: { id?: string; brand?: string }) {
           <textarea style={{ marginTop: 10, minHeight: 120 }} placeholder="A short note on the design, history, wear and included items." value={p.boutiqueText} onChange={(e) => edit('boutiqueText', e.target.value)} />
           <div className="row between" style={{ marginTop: 16 }}><h2 style={{ margin: 0, fontSize: 18 }}>Care · product page</h2><button className="btn sm ghost" onClick={() => copy(p.care)}>Copy care</button></div>
           <div className="small" style={{ marginTop: 8, padding: '10px 12px', background: 'var(--soft)' }}>{p.care || <span className="muted">No care instructions yet. Add a care label photo and fill the fields, or type them in.</span>}</div>
-          {!!(p.flags.length || (p.holds || []).length) && <div className="flag"><b>To verify</b><ul style={{ margin: '6px 0 0', paddingLeft: 18 }}>
-            {(p.holds || []).map((f, i) => <li key={'h' + f}><b>Held:</b> {f} <a href="#" className="small" onClick={(e) => { e.preventDefault(); edit('holds', (p.holds || []).filter((_, j) => j !== i)); }}>resolved</a></li>)}
-            {p.flags.map((f) => <li key={f}>{f}</li>)}</ul></div>}
+          {(() => { const vocabF = p.flags.filter((f) => /^Vocabulary/.test(f)); const other = p.flags.filter((f) => !/^Vocabulary/.test(f));
+            return <>
+              {!!(other.length || (p.holds || []).length) && <div className="flag"><b>To verify</b><ul style={{ margin: '6px 0 0', paddingLeft: 18 }}>
+                {(p.holds || []).map((f, i) => <li key={'h' + f}><b>Held:</b> {f} <a href="#" className="small" onClick={(e) => { e.preventDefault(); edit('holds', (p.holds || []).filter((_, j) => j !== i)); }}>resolved</a></li>)}
+                {other.map((f) => <li key={f}>{f}</li>)}</ul></div>}
+              {!!vocabF.length && <div className="flag vocabnote"><b>FORM vocabulary</b> <span className="small muted">adapted automatically or suggested; nothing here blocks approval</span><ul style={{ margin: '6px 0 0', paddingLeft: 18 }}>
+                {vocabF.map((f) => <li key={f}>{f.replace(/^Vocabulary adapted to FORM terms:\s*/, 'Adapted: ').replace(/^Vocabulary suggestion:\s*/, 'Suggestion: ').replace(/^Vocabulary:\s*/, '')}</li>)}</ul>
+                <a href="/vocabulary?v=glossary" className="small">Open the FORM glossary</a></div>}
+            </>; })()}
           <div className="row">
             {p.photos.length>0 && copyControl(p).photos!=='confirmed' && !DONE.includes(p.status) && <button className="btn ghost" onClick={()=>reviewCopy('confirm-photos')}>Confirm all photos match</button>}
             {!!copyControl(p).paragraph && !DONE.includes(p.status) && <button className="btn ghost" onClick={()=>reviewCopy('accept-history')}>Accept sourced history</button>}
@@ -308,12 +318,13 @@ export function Ingestion({ id, brand }: { id?: string; brand?: string }) {
             <li className={r.conflicts.length ? 'no' : ''}>{r.conflicts.length ? 'Conflicts: ' + r.conflicts.join(', ') : 'No conflict between sources'}</li>
             <li className={r.tocheck.length ? 'no' : ''}>{r.tocheck.length ? 'To check: ' + r.tocheck.join(', ') : 'Every filled-in value checked'}</li>
           </ul>
-          {!!p.copy && !DONE.includes(p.status) && !!approveIssues(p).length && <p className="small muted">{approveIssues(p).join(" · ")}</p>}
+          {!!p.copy && !DONE.includes(p.status) && !!ac.hard.length && <p className="small" style={{ color: 'var(--bad-ink)' }}><b>Fix before approving:</b> {ac.hard.join(' · ')}</p>}
+          {!!p.copy && !DONE.includes(p.status) && !!ac.soft.length && <p className="small muted"><b>Open checks</b> (you can approve past these; the approval records them): {ac.soft.join(' · ')}</p>}
           <h3 style={{ marginTop: 16 }}>House style check</h3>
           <ul className="checks">{checks.map((c) => <li key={c.label} className={c.ok ? '' : 'no'}>{c.label}</li>)}</ul>
           <div className="grid g2" style={{ marginTop: 16, gap: 8 }}>
             <button className="btn" style={{ justifyContent: 'center' }} onClick={() => setStatus('In review')}>Send to review</button>
-            <button className="btn dark" style={{ justifyContent: 'center' }} onClick={() => setStatus('Approved')}>Approve</button>
+            <button className="btn dark" style={{ justifyContent: 'center' }} onClick={() => setStatus('Approved', !ac.hard.length && !!ac.soft.length)}>{!ac.hard.length && ac.soft.length ? 'Approve with open checks' : 'Approve'}</button>
             <button className="btn ghost" style={{ justifyContent: 'center' }} onClick={() => edit('needsInfo', !p.needsInfo)}>{p.needsInfo ? 'Clear needs info' : 'Ask boutique for info'}</button>
             <button className="btn ghost" disabled={p.status!=='Approved'} style={{ justifyContent: 'center' }} onClick={() => setStatus('In Shopify')}>Mark as in Shopify</button>
           </div>

@@ -1,5 +1,5 @@
 import { handle, HttpError } from '@/lib/http';
-import { blankProduct, canon, normSeason, now, readBoutiqueText, readiness, uid, type Product, GARMENT_CODE_MISSING } from '@/lib/domain';
+import { blankProduct, canon, toFrozen, normSeason, now, readBoutiqueText, readiness, uid, type Product, GARMENT_CODE_MISSING } from '@/lib/domain';
 import { getVocab, listBoutiques, saveProduct, upsertBoutique } from '@/lib/repo';
 
 export const dynamic = 'force-dynamic';
@@ -39,11 +39,19 @@ export const POST = handle(async (req: Request) => {
     }
     const p: Product = blankProduct(rowId);
     const ns = normSeason(o.seasonRaw);
+    // Boutique wording is matched to the frozen vocabulary; where two frozen terms fit, the value stays as typed and a person picks.
+    const adapted: string[] = [];
+    const fz = (key: 'colours' | 'conditions' | 'brands', list: string[], raw: string, label: string) => {
+      const r = toFrozen(key, list, raw);
+      if (r.choose.length) adapted.push(`${label} "${raw}": closest frozen terms ${r.choose.join(' or ')}, pick one`);
+      else if (raw && r.value && r.value.toLowerCase() !== raw.toLowerCase()) adapted.push(`${label} "${raw}" matched to the frozen term "${r.value}"`);
+      return r.value;
+    };
     Object.assign(p, {
       tempId:o.tempId||'',listingUrl:o.listingUrl||'',verifiedWear:o.verifiedWear||'',sku: o.sku || '', boutiqueRef: o.boutiqueRef || '', productCode: o.productCode || '', name: o.name || '',
-      brand: o.brand ? canon(vocab.brands, o.brand.toUpperCase()) : '',
-      category: canon(vocab.categories, o.category || ''), colour: canon(vocab.colours, o.colour || ''),
-      material: canon(vocab.materials, o.material || ''), condition: canon(vocab.conditions, o.condition || ''),
+      brand: o.brand ? fz('brands', vocab.brands, o.brand.toUpperCase(), 'Brand') : '',
+      category: canon(vocab.categories, o.category || ''), colour: fz('colours', vocab.colours, o.colour || '', 'Colour'),
+      material: canon(vocab.materials, o.material || ''), condition: fz('conditions', vocab.conditions, o.condition || '', 'Condition'),
       size: o.size || '', madeIn: o.madeIn || '', measurements: o.measurements || '', care: o.care || '', price: o.price || '',
       boutiqueDesc: o.boutiqueDesc || '',
       sizeSystem: Object.keys(vocab.sizes).find((s) => s.toLowerCase() === String(o.sizeSystem || '').trim().toLowerCase()) || '',
@@ -54,6 +62,7 @@ export const POST = handle(async (req: Request) => {
     });
     TRACKED.forEach((k) => { if (o[k]) p.fieldSrc[k] = 'file'; });
     if (!o.productCode) p.flags.push(GARMENT_CODE_MISSING);
+    adapted.forEach((a) => p.flags.push('Vocabulary: ' + a));
     if (o.seasonRaw && ns.yv) p.fieldSrc.season = 'file';
     readBoutiqueText(p, vocab);
     p.needsInfo = readiness(p).missing.length > 0;

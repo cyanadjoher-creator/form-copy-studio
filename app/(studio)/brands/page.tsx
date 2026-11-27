@@ -26,6 +26,7 @@ function Brands() {
     <>
       <div className="eyebrow">Catalogue · by brand</div><h1>Products by brand</h1>
       <p className="lede">Every item grouped by house, with the boutique it comes from, its photos and its current copy. Click an item to open it in Ingestion.</p>
+      <p className="small"><a href="/api/export">Export the validated product pages (Excel)</a> · <a href="/api/export?scope=review">with pieces in review</a></p>
       <div className="brands">
         <div className="card blist" style={{ padding: 10 }}>{names.map((n) => <a key={n} className={n === brand ? 'on' : ''} onClick={() => setSel(n)}><span>{titleCase(n)}</span><span className="n">{m[n].length}</span></a>)}</div>
         <div className="card">

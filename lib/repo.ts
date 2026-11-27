@@ -3,6 +3,7 @@ import { SOUKITA_PROMPT } from './soukita-prompt';
 // Data access. Products are stored as JSON documents (one row each) with photos in their own table,
 // so the shape can evolve while the copy process is still being defined.
 import { db } from './db';
+import { FROZEN_FIELD_LISTS, FIELD_ALIASES } from './glossary';
 import { DEFAULT_VOCAB, DONE, normCode, refKey, type Boutique, type Photo, type Product, type Prompt, type Ref, type Vocab } from './domain';
 import { HttpError } from './http';
 import { copyControl, photoFlag } from './copy-workflow';
@@ -89,7 +90,23 @@ export async function getVocab(): Promise<Vocab> {
   const rows = await q<{ key: string; value: unknown }>('select key, value from vocab');
   const v = { ...DEFAULT_VOCAB } as Record<string, unknown>;
   rows.forEach((r) => (v[r.key] = r.value));
-  return v as Vocab;
+  return withFrozen(v as Vocab);
+}
+/** The frozen lists always come first and can't be removed here; terms added in the studio stay after them
+ * unless they are only another name for a frozen term (that alias is matched on import instead). */
+export function withFrozen(v: Vocab): Vocab {
+  const n = (x: string) => x.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9]/g, '');
+  const out = { ...v };
+  (['colours', 'conditions', 'seasonTypes', 'brands'] as const).forEach((k) => {
+    const frozen = FROZEN_FIELD_LISTS[k];
+    const fz = new Set(frozen.map(n));
+    const aliases = new Set(Object.keys(FIELD_ALIASES[k]).map(n));
+    const extras = (v[k] || []).filter((x) => !fz.has(n(x)) && !aliases.has(n(x)));
+    out[k] = k === 'brands' ? [...new Set([...extras, ...frozen])].sort((a, b) => a.localeCompare(b, 'fr')) : [...frozen.filter((x) => x !== 'Unknown'), ...extras, ...(frozen.includes('Unknown') ? ['Unknown'] : [])];
+  });
+  out.materials = [...new Set([...(DEFAULT_VOCAB.materials), ...(v.materials || [])])];
+  out.categories = [...new Set([...(v.categories || []), ...DEFAULT_VOCAB.categories.filter((c) => !(v.categories || []).includes(c))])];
+  return out;
 }
 export async function setVocab(key: string, value: unknown) {
   if (!(key in DEFAULT_VOCAB)) throw new HttpError(400, 'Unknown vocabulary: ' + key);

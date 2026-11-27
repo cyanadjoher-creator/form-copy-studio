@@ -1,5 +1,6 @@
 import { DONE, CONTEXT_MISSING, now, readiness, type ContextResearch, type CopyControl, type Product, type Source } from './domain.ts';
 import { sizeInches } from './sizing.ts';
+import { adaptText } from './glossary.ts';
 import { canonicalListing, contextOnHold, rowNote, safeUrl, type ContextResult } from './context.ts';
 
 const oneLine = (v: unknown, limit = 500) => typeof v === 'string' ? v.trim().replace(/\s+/g,' ').slice(0,limit) : '';
@@ -112,6 +113,11 @@ export function applyDraft(p: Product, j: Record<string,unknown>, ctx: ContextRe
     const line=single(cleanHeld(s.replace(/^[·•-]\s*/,''),heldFibre,heldLining));
     return line && !/^(?:made in|care:|size\b|measurements?\b)/i.test(line) && !/\d\s*(cm|mm|inches|in\b)/i.test(line) ? [line] : [];
   });
+  // Boutique or model wording becomes FORM wording (spelling and standard names); meaning changes are only suggested.
+  const vocabChanges: string[] = [], vocabSuggestions: string[] = [];
+  const adapt = (x: string) => { const a = adaptText(x); vocabChanges.push(...a.changes); vocabSuggestions.push(...a.suggestions); return a.text; };
+  if (product) product = adapt(product);
+  for (let i = 0; i < features.length; i++) features[i] = adapt(features[i]);
   const measure = sizeInches(p.measurements || '',p.category);
   if (p.measurements && (!measure.text || measure.conflict)) blockers.push('Check the original measurement labels and units. Conflicting or unreadable measurements were omitted.');
   if (!p.name || !brand || !name) blockers.push('Confirm the brand and product name before approval.');
@@ -122,27 +128,53 @@ export function applyDraft(p: Product, j: Record<string,unknown>, ctx: ContextRe
   p.boutiqueText=heldCare||heldFibre||heldLining ? '' : scrub(j.boutique_text,2000);
   p.historyRow=rec?.row || null;
   p.copyControl={history,paragraph,header,photos:samePhotos?'confirmed':'unreviewed',blockers,contextOrigin:ctx.origin,contextKey:rec?.key};
-  p.flags=[...new Set([...blockers,...stringList(j.flags),paragraph?'History draft needs editorial source review.':'Context missing: no source was found for the history. Add research (or a tracker row) and regenerate, or click Omit history.',rec?.note||'',rec?'History record matched · FORM tracker row '+(rec.tempId||rec.row)+' · '+rec.scope:''].filter(Boolean))];
+  p.flags=[...new Set([...blockers,...stringList(j.flags),paragraph?'History draft needs editorial source review.':'Context missing: no source was found for the history. Add research (or a tracker row) and regenerate, or click Omit history.',rec?.note||'',rec?'History record matched · FORM tracker row '+(rec.tempId||rec.row)+' · '+rec.scope:'',
+    vocabChanges.length?'Vocabulary adapted to FORM terms: '+[...new Set(vocabChanges)].join(', '):'',
+    ...[...new Set(vocabSuggestions)].map(x=>'Vocabulary suggestion: '+x)].filter(Boolean))];
   return p;
 }
 
-export function approveIssues(p: Product) {
-  const r=readiness(p), c=copyControl(p), issues=[...c.blockers];
-  if(r.missing.length) issues.push('missing '+r.missing.join(', '));
-  if(r.conflicts.length) issues.push('conflicting '+r.conflicts.join(', '));
-  if(r.tocheck.length) issues.push('check '+r.tocheck.join(', '));
-  if(p.holds.length) issues.push('unresolved holds');
-  if(c.photos==='conflict' || (c.photos!=='confirmed' && photoFlag(p))) issues.push('check the mixed photo set');
-  if(!p.copy.trim() || p.copy.includes(CONTEXT_MISSING)) issues.push('finish the website draft');
-  if(!['accepted','omitted','archive'].includes(c.history)) issues.push('review the history or explicitly record that it is omitted');
-  if(c.history==='accepted' && (!c.paragraph || !p.copy.includes(c.paragraph) || !p.sources.length)) issues.push('history text and evidence do not match the reviewed paragraph');
-  if(c.header && !p.copy.startsWith(c.header+'\n\n')) issues.push('restore the reviewed brand/name/date header');
+const SOFT_BLOCKER=/boutique description only|measurement labels|Photo evidence changed|updated photo evidence/i;
+/** Approval checks, split in two. Hard checks protect accuracy (two sources disagree, mixed photos, a broken header);
+ * soft checks are reminders a person can approve past, and the approval records them. */
+export function approvalCheck(p: Product) {
+  const r=readiness(p), c=copyControl(p), hard: string[]=[], soft: string[]=[];
+  c.blockers.forEach(b=>(SOFT_BLOCKER.test(b)?soft:hard).push(b));
+  const missingHard=r.missing.filter(m=>['Brand','Item name'].includes(m)), missingSoft=r.missing.filter(m=>!missingHard.includes(m));
+  if(missingHard.length) hard.push('missing '+missingHard.join(', '));
+  if(missingSoft.length) soft.push('missing '+missingSoft.join(', '));
+  if(r.conflicts.length) hard.push('conflicting '+r.conflicts.join(', '));
+  if(r.tocheck.length) soft.push('check '+r.tocheck.join(', '));
+  if(p.holds.length) soft.push('unresolved holds');
+  if(c.photos==='conflict' || (c.photos!=='confirmed' && photoFlag(p))) hard.push('check the mixed photo set');
+  if(!p.copy.trim()) hard.push('finish the website draft');
+  else if(p.copy.includes(CONTEXT_MISSING)) soft.push('finish the website draft (history marker still in the copy)');
+  if(!['accepted','omitted','archive'].includes(c.history)) soft.push('review the history or explicitly record that it is omitted');
+  if(c.history==='accepted' && (!c.paragraph || !p.copy.includes(c.paragraph) || !p.sources.length)) hard.push('history text and evidence do not match the reviewed paragraph');
+  if(c.header && !p.copy.startsWith(c.header+'\n\n')) hard.push('restore the reviewed brand/name/date header');
   if(p.measurements && c.history!=='archive') {
     const expected=sizeInches(p.measurements,p.category);
     const final=p.copy.split('\n').filter(l=>l.startsWith('· ')).at(-1);
-    if(expected.conflict || !expected.text || final!=='· '+expected.text) issues.push('correct the final quarter-inch size bullet');
+    if(expected.conflict || !expected.text || final!=='· '+expected.text) hard.push('correct the final quarter-inch size bullet');
   }
-  return [...new Set(issues)];
+  return {hard:[...new Set(hard)],soft:[...new Set(soft)]};
+}
+export function approveIssues(p: Product) {
+  const {hard,soft}=approvalCheck(p);
+  return [...new Set([...hard,...soft])];
+}
+/** Approving past the soft checks: a drafted history paragraph still in the copy counts as accepted, a missing one as omitted. */
+export function settleOnApproval(p: Product) {
+  const c=copyControl(p);
+  const decisions: string[]=[];
+  if(p.copy.includes(CONTEXT_MISSING)) { p.copy=p.copy.split(/\n\s*\n/).filter(x=>x.trim()!==CONTEXT_MISSING).join('\n\n'); decisions.push('history marker removed'); }
+  if(!['accepted','omitted','archive'].includes(c.history)) {
+    const kept=!!c.paragraph && p.copy.includes(c.paragraph) && p.sources.length>0;
+    p.copyControl={...c,history:kept?'accepted':'omitted',paragraph:kept?c.paragraph:''};
+    if(!kept) p.sources=[];
+    decisions.push(kept?'history accepted on approval':'history omitted on approval');
+  }
+  return decisions;
 }
 
 export function copyForShopify(p: Product) {
@@ -153,4 +185,24 @@ export function copyForShopify(p: Product) {
   const [brand,name,date] = independentHeader.split('\n');
   const description=independentHeader && p.copy.startsWith(independentHeader+'\n\n') ? p.copy.slice(independentHeader.length).trim() : p.copy.trim();
   return {vendor:brand || p.brand, title:name || p.name, season_or_era:date || '', description, care:checkedFacts(p).heldCare || !checkedFacts(p).clean('care') ? '' : p.care};
+}
+
+/** The approved copy split into the Copy Guide sections, for the product-page export and Shopify. */
+export function copySections(p: Product) {
+  const c=copyControl(p);
+  const sh=copyForShopify(p);
+  const blocks=sh.description.split(/\n\s*\n/).map(b=>b.trim()).filter(Boolean);
+  const isBullets=(b: string)=>b.split('\n').every(l=>l.startsWith('· '));
+  const history=blocks.find(b=>c.paragraph && b===c.paragraph.trim()) || (blocks[0] && !isBullets(blocks[0]) && !/^made in /i.test(blocks[0]) && blocks.length>2 ? blocks[0] : '');
+  const rest=blocks.filter(b=>b!==history);
+  const country=rest.find(b=>/^made in /i.test(b)) || '';
+  const short=rest.find(b=>!isBullets(b) && b!==country) || '';
+  const bullets=rest.filter(isBullets).flatMap(b=>b.split('\n')).map(l=>l.replace(/^·\s*/,''));
+  const measure=p.measurements?sizeInches(p.measurements,p.category):{text:'',conflict:false};
+  const last=bullets.at(-1)||'';
+  const sizeLine=(measure.text && last===measure.text) || /\d(?:\.\d+)?(?:-\d+(?:\.\d+)?)?\s*(?:in|cm)$/.test(last) && /\d\s*x\s*\S/i.test(last) ? bullets.pop()! : '';
+  const size=[[p.sizeSystem,p.size].filter(Boolean).join(' '),sizeLine].filter(Boolean).join(' · ');
+  const esc=(s: string)=>s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  const html=[history&&`<p>${esc(history)}</p>`,short&&`<p>${esc(short)}</p>`,(bullets.length||sizeLine)?'<ul>'+[...bullets,...(sizeLine?[sizeLine]:[])].map(b=>`<li>${esc(b)}</li>`).join('')+'</ul>':'',country&&`<p>${esc(country)}</p>`].filter(Boolean).join('');
+  return {vendor:sh.vendor,title:sh.title,season:sh.season_or_era,history,short,long:bullets.join('\n'),country:country.replace(/^made in\s+/i,'').replace(/\.$/,''),composition:p.material||'',size,care:sh.care,html};
 }

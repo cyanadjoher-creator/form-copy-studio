@@ -45,6 +45,11 @@ export default function Overview() {
       <div className="eyebrow">FORM · garment copy</div>
       <h1>Overview</h1>
       <p className="lede">What the boutique stock holds, what it matches in the archive, which brands we are missing, and where the copy stands.</p>
+      <div className="row" style={{ gap: 8, margin: '-4px 0 18px' }}>
+        <a className="btn dark sm" href="/api/export">Export product pages (Excel) · {done} validated</a>
+        <a className="btn ghost sm" href="/api/export?scope=review">Export with pieces in review</a>
+        <span className="small muted">History › Short description › Long description › Country › Composition › Size, one row per piece, plus the Shopify HTML.</span>
+      </div>
 
       <div className="grid g5 kpis">
         <div className="card kpi"><div className="l">Products</div><div className="v">{n}</div><div className="s">across {data.boutiques.length} boutiques</div></div>
